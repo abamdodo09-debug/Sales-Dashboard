@@ -1,0 +1,6 @@
+{
+  "name": "SalesPro Analytics - Google Sheets Enterprise Dashboard",
+  "description": "Dashboard profesional analisa pencapaian sales, SPV, brand, dan store dengan analisa harian, mingguan, bulanan, tahunan, perbandingan WoW, MoM, YoY, serta integrasi Google Sheets & Google Apps Script.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
