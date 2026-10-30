@@ -415,47 +415,61 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
     }
   };
 
-  // Filtered lists according to search and status
+  // Filtered lists according to search, status, and global filters
+  const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
+
   const filteredAreas = useMemo(() => {
     return matrixData.areas.filter((a) => {
-      const q = searchQuery.toLowerCase();
-      const matchQ = a.coverArea.toLowerCase().includes(q) || a.region.toLowerCase().includes(q);
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const reg = filters.REGION.toUpperCase();
+        if (a.coverArea.toUpperCase() !== reg && a.region.toUpperCase() !== reg) return false;
+      }
+      const matchQ = !effectiveSearch || a.coverArea.toLowerCase().includes(effectiveSearch) || a.region.toLowerCase().includes(effectiveSearch);
       const matchS = statusFilter === 'all' || a.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [matrixData.areas, searchQuery, statusFilter]);
+  }, [matrixData.areas, effectiveSearch, statusFilter, filters.REGION]);
 
   const filteredSpvs = useMemo(() => {
     return matrixData.spvs.filter((s) => {
-      const q = searchQuery.toLowerCase();
+      if (filters.SPV && filters.SPV !== 'ALL' && s.spvName.toUpperCase() !== filters.SPV.toUpperCase()) return false;
       const matchQ =
-        s.spvName.toLowerCase().includes(q) ||
-        s.coverAreas.some((c) => c.toLowerCase().includes(q));
+        !effectiveSearch ||
+        s.spvName.toLowerCase().includes(effectiveSearch) ||
+        s.coverAreas.some((c) => c.toLowerCase().includes(effectiveSearch));
       const matchS = statusFilter === 'all' || s.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [matrixData.spvs, searchQuery, statusFilter]);
+  }, [matrixData.spvs, effectiveSearch, statusFilter, filters.SPV]);
 
   const filteredSales = useMemo(() => {
     return matrixData.sales.filter((sl) => {
-      const q = searchQuery.toLowerCase();
+      if (filters.SALES && filters.SALES !== 'ALL' && sl.salesName.toUpperCase() !== filters.SALES.toUpperCase()) return false;
+      if (filters.SPV && filters.SPV !== 'ALL' && sl.spv.toUpperCase() !== filters.SPV.toUpperCase()) return false;
+      if (filters.REGION && filters.REGION !== 'ALL' && sl.coverArea.toUpperCase() !== filters.REGION.toUpperCase()) return false;
+
       const matchQ =
-        sl.salesName.toLowerCase().includes(q) ||
-        sl.coverArea.toLowerCase().includes(q) ||
-        sl.spv.toLowerCase().includes(q);
+        !effectiveSearch ||
+        sl.salesName.toLowerCase().includes(effectiveSearch) ||
+        sl.coverArea.toLowerCase().includes(effectiveSearch) ||
+        sl.spv.toLowerCase().includes(effectiveSearch);
       const matchS = statusFilter === 'all' || sl.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [matrixData.sales, searchQuery, statusFilter]);
+  }, [matrixData.sales, effectiveSearch, statusFilter, filters]);
 
   const filteredBas = useMemo(() => {
     return matrixData.bas.filter((b) => {
-      const q = searchQuery.toLowerCase();
+      if (filters.SALES && filters.SALES !== 'ALL' && b.salesName.toUpperCase() !== filters.SALES.toUpperCase()) return false;
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL' && b.storeName.toUpperCase() !== filters.NAMA_STORE.toUpperCase()) return false;
+      if (filters.REGION && filters.REGION !== 'ALL' && b.coverArea.toUpperCase() !== filters.REGION.toUpperCase()) return false;
+
       const matchQ =
-        b.baName.toLowerCase().includes(q) ||
-        b.storeName.toLowerCase().includes(q) ||
-        b.coverArea.toLowerCase().includes(q) ||
-        b.salesName.toLowerCase().includes(q);
+        !effectiveSearch ||
+        b.baName.toLowerCase().includes(effectiveSearch) ||
+        b.storeName.toLowerCase().includes(effectiveSearch) ||
+        b.coverArea.toLowerCase().includes(effectiveSearch) ||
+        b.salesName.toLowerCase().includes(effectiveSearch);
       const matchS =
         statusFilter === 'all' ||
         (statusFilter === 'achieved' && b.achievementNonLavojoyPct >= 100) ||
@@ -463,20 +477,24 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
         (statusFilter === 'lagging' && b.achievementNonLavojoyPct < 80);
       return matchQ && matchS;
     });
-  }, [matrixData.bas, searchQuery, statusFilter]);
+  }, [matrixData.bas, effectiveSearch, statusFilter, filters]);
 
   const filteredTrainers = useMemo(() => {
     return (matrixData.trainers || []).filter((t) => {
-      const q = searchQuery.toLowerCase();
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const reg = filters.REGION.toUpperCase();
+        if (t.areaCovered.toUpperCase() !== reg && t.region.toUpperCase() !== reg) return false;
+      }
       const matchQ =
-        t.trainerName.toLowerCase().includes(q) ||
-        t.areaCovered.toLowerCase().includes(q) ||
-        t.region.toLowerCase().includes(q) ||
-        (t.notes || '').toLowerCase().includes(q);
+        !effectiveSearch ||
+        t.trainerName.toLowerCase().includes(effectiveSearch) ||
+        t.areaCovered.toLowerCase().includes(effectiveSearch) ||
+        t.region.toLowerCase().includes(effectiveSearch) ||
+        (t.notes || '').toLowerCase().includes(effectiveSearch);
       const matchS = statusFilter === 'all' || t.status === statusFilter;
       return matchQ && matchS;
     });
-  }, [matrixData.trainers, searchQuery, statusFilter]);
+  }, [matrixData.trainers, effectiveSearch, statusFilter, filters.REGION]);
 
   return (
     <div className="space-y-6">

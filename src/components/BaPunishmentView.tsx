@@ -251,30 +251,67 @@ export const BaPunishmentView: React.FC<BaPunishmentViewProps> = ({ records, fil
 
   // Filtered list
   const filteredList = useMemo(() => {
+    const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
     return punishmentList.filter((item) => {
       if (statusFilter === 'tertib' && item.totalNihilDays > 0) return false;
       if (statusFilter === 'peringatan' && item.totalNihilDays === 0) return false;
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      // Global Sales
+      if (filters.SALES && filters.SALES !== 'ALL' && item.salesName.toUpperCase() !== filters.SALES.toUpperCase()) {
+        return false;
+      }
+
+      // Global SPV
+      if (filters.SPV && filters.SPV !== 'ALL' && item.spvName.toUpperCase() !== filters.SPV.toUpperCase()) {
+        return false;
+      }
+
+      // Global Store Name
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL' && item.storeName.toUpperCase() !== filters.NAMA_STORE.toUpperCase()) {
+        return false;
+      }
+
+      // Global Region
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const reg = filters.REGION.toUpperCase();
+        if ((item.region || '').toUpperCase() !== reg && (item.coverArea || '').toUpperCase() !== reg) {
+          return false;
+        }
+      }
+
+      // Free Search
+      if (effectiveSearch) {
         const match =
-          item.baName.toLowerCase().includes(q) ||
-          item.storeName.toLowerCase().includes(q) ||
-          item.salesName.toLowerCase().includes(q) ||
-          item.spvName.toLowerCase().includes(q);
+          item.baName.toLowerCase().includes(effectiveSearch) ||
+          item.storeName.toLowerCase().includes(effectiveSearch) ||
+          item.salesName.toLowerCase().includes(effectiveSearch) ||
+          item.spvName.toLowerCase().includes(effectiveSearch) ||
+          (item.region && item.region.toLowerCase().includes(effectiveSearch)) ||
+          (item.coverArea && item.coverArea.toLowerCase().includes(effectiveSearch));
         if (!match) return false;
       }
+
       return true;
     });
-  }, [punishmentList, statusFilter, searchQuery]);
+  }, [punishmentList, statusFilter, searchQuery, filters]);
 
   // Stats
   const punishmentStats = useMemo(() => {
-    const totalBa = punishmentList.length;
-    const disciplinedBa = punishmentList.filter((b) => b.totalNihilDays === 0).length;
-    const totalNihilDays = punishmentList.reduce((acc, curr) => acc + curr.totalNihilDays, 0);
-    const totalDendaNominal = punishmentList.reduce((acc, curr) => acc + curr.totalDendaNominal, 0);
-    const spCount = punishmentList.filter((b) => b.disciplineBadge === 'peringatan_sp').length;
+    const hasActiveFilter =
+      statusFilter !== 'all' ||
+      (filters.SALES && filters.SALES !== 'ALL') ||
+      (filters.SPV && filters.SPV !== 'ALL') ||
+      (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL') ||
+      (filters.REGION && filters.REGION !== 'ALL') ||
+      Boolean((searchQuery || filters.searchQuery || '').trim());
+
+    const targetList = hasActiveFilter ? filteredList : punishmentList;
+
+    const totalBa = targetList.length;
+    const disciplinedBa = targetList.filter((b) => b.totalNihilDays === 0).length;
+    const totalNihilDays = targetList.reduce((acc, curr) => acc + curr.totalNihilDays, 0);
+    const totalDendaNominal = targetList.reduce((acc, curr) => acc + curr.totalDendaNominal, 0);
+    const spCount = targetList.filter((b) => b.disciplineBadge === 'peringatan_sp').length;
 
     return {
       totalBa,
@@ -283,7 +320,7 @@ export const BaPunishmentView: React.FC<BaPunishmentViewProps> = ({ records, fil
       totalDendaNominal,
       spCount,
     };
-  }, [punishmentList]);
+  }, [punishmentList, filteredList, statusFilter, filters, searchQuery]);
 
   // Export Excel
   const handleExportExcel = () => {

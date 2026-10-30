@@ -412,24 +412,32 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
   // FILTERED DATA
   // -------------------------------------------------------------
 
-  // Filtered sales for Scorecard Tab (respects selectedMonthPeriod)
+  // Filtered sales for Scorecard Tab (respects selectedMonthPeriod and global filters)
   const filteredScorecardSales = useMemo(() => {
+    const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
     return kpiList.filter((s) => {
       // Month Period filter
       if (selectedMonthPeriod !== 'ALL' && s.monthPeriod !== selectedMonthPeriod) return false;
 
-      // Global Filters
-      if (filters.SALES !== 'ALL' && s.salesName !== filters.SALES) return false;
-      if (filters.SPV !== 'ALL' && s.spv !== filters.SPV) return false;
+      // Global Sales
+      if (filters.SALES !== 'ALL' && s.salesName.toUpperCase() !== filters.SALES.toUpperCase()) return false;
+
+      // Global SPV
+      if (filters.SPV !== 'ALL' && s.spv.toUpperCase() !== filters.SPV.toUpperCase()) return false;
+
+      // Global Region
+      if (filters.REGION !== 'ALL') {
+        const reg = filters.REGION.toUpperCase();
+        if (s.coverArea.toUpperCase() !== reg) return false;
+      }
 
       // Free Search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (effectiveSearch) {
         const match =
-          s.salesName.toLowerCase().includes(q) ||
-          s.coverArea.toLowerCase().includes(q) ||
-          s.spv.toLowerCase().includes(q) ||
-          s.monthPeriod.toLowerCase().includes(q);
+          s.salesName.toLowerCase().includes(effectiveSearch) ||
+          s.coverArea.toLowerCase().includes(effectiveSearch) ||
+          s.spv.toLowerCase().includes(effectiveSearch) ||
+          s.monthPeriod.toLowerCase().includes(effectiveSearch);
         if (!match) return false;
       }
       return true;

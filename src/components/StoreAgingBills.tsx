@@ -188,17 +188,55 @@ export const StoreAgingBills: React.FC<StoreAgingBillsProps> = ({ filters }) => 
     return Array.from(monthsMap.values());
   }, [bills]);
 
-  // Bills filtered by selected month period
+  // Sync with global Filter Terintegrasi
+  React.useEffect(() => {
+    if (filters.BULAN && filters.BULAN !== 'ALL') {
+      setSelectedMonthPeriod(filters.BULAN.toUpperCase());
+    } else if (filters.BULAN === 'ALL') {
+      setSelectedMonthPeriod('ALL');
+    }
+  }, [filters.BULAN]);
+
+  // Bills filtered by selected month period and global filters
   const periodBills = useMemo(() => {
-    if (selectedMonthPeriod === 'ALL') return bills;
     return bills.filter((b) => {
-      if (!b.sellInDate) return false;
-      const d = new Date(b.sellInDate);
-      if (isNaN(d.getTime())) return false;
-      const billMonth = d.toLocaleString('id-ID', { month: 'long' }).toUpperCase();
-      return billMonth === selectedMonthPeriod;
+      // Month
+      if (selectedMonthPeriod !== 'ALL') {
+        if (!b.sellInDate) return false;
+        const d = new Date(b.sellInDate);
+        if (isNaN(d.getTime())) return false;
+        const billMonth = d.toLocaleString('id-ID', { month: 'long' }).toUpperCase();
+        if (billMonth !== selectedMonthPeriod) return false;
+      }
+
+      // Global Sales
+      if (filters.SALES && filters.SALES !== 'ALL' && b.salesName.toUpperCase() !== filters.SALES.toUpperCase()) {
+        return false;
+      }
+
+      // Global SPV
+      if (filters.SPV && filters.SPV !== 'ALL' && b.spvName.toUpperCase() !== filters.SPV.toUpperCase()) {
+        return false;
+      }
+
+      // Global Store Name
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL' && b.storeName.toUpperCase() !== filters.NAMA_STORE.toUpperCase()) {
+        return false;
+      }
+
+      // Global Region
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const reg = filters.REGION.toUpperCase();
+        if (b.region.toUpperCase() !== reg && b.coverArea.toUpperCase() !== reg) {
+          return false;
+        }
+      }
+
+      return true;
     });
-  }, [bills, selectedMonthPeriod]);
+  }, [bills, selectedMonthPeriod, filters.SALES, filters.SPV, filters.NAMA_STORE, filters.REGION]);
+
+  const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
 
   // Filtered bills for Invoices sub-tab
   const filteredBills = useMemo(() => {
@@ -211,22 +249,21 @@ export const StoreAgingBills: React.FC<StoreAgingBillsProps> = ({ filters }) => 
       if (agingFilter !== 'all' && b.agingCategory !== agingFilter) return false;
 
       // Search
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (effectiveSearch) {
         const match =
-          b.invoiceNumber.toLowerCase().includes(q) ||
-          b.storeName.toLowerCase().includes(q) ||
-          b.salesName.toLowerCase().includes(q) ||
-          b.spvName.toLowerCase().includes(q) ||
-          b.region.toLowerCase().includes(q) ||
-          b.coverArea.toLowerCase().includes(q) ||
-          (b.brandCategory && b.brandCategory.toLowerCase().includes(q));
+          b.invoiceNumber.toLowerCase().includes(effectiveSearch) ||
+          b.storeName.toLowerCase().includes(effectiveSearch) ||
+          b.salesName.toLowerCase().includes(effectiveSearch) ||
+          b.spvName.toLowerCase().includes(effectiveSearch) ||
+          b.region.toLowerCase().includes(effectiveSearch) ||
+          b.coverArea.toLowerCase().includes(effectiveSearch) ||
+          (b.brandCategory && b.brandCategory.toLowerCase().includes(effectiveSearch));
         if (!match) return false;
       }
 
       return true;
     });
-  }, [periodBills, statusFilter, agingFilter, searchQuery]);
+  }, [periodBills, statusFilter, agingFilter, effectiveSearch]);
 
   // Violations list calculated from periodBills and filtered by status & search
   const storeViolations = useMemo(() => {
@@ -234,24 +271,38 @@ export const StoreAgingBills: React.FC<StoreAgingBillsProps> = ({ filters }) => 
     if (violationStatusFilter !== 'all') {
       list = list.filter((v) => v.statusBadge === violationStatusFilter);
     }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
+    if (effectiveSearch) {
       list = list.filter(
         (v) =>
-          v.storeName.toLowerCase().includes(q) ||
-          v.salesName.toLowerCase().includes(q) ||
-          v.spvName.toLowerCase().includes(q) ||
-          v.coverArea.toLowerCase().includes(q) ||
-          v.region.toLowerCase().includes(q)
+          v.storeName.toLowerCase().includes(effectiveSearch) ||
+          v.salesName.toLowerCase().includes(effectiveSearch) ||
+          v.spvName.toLowerCase().includes(effectiveSearch) ||
+          v.coverArea.toLowerCase().includes(effectiveSearch) ||
+          v.region.toLowerCase().includes(effectiveSearch)
       );
     }
     return list;
-  }, [periodBills, violationStatusFilter, searchQuery]);
+  }, [periodBills, violationStatusFilter, effectiveSearch]);
 
-  // Denda calculation using selectedMonthPeriod
+  // Denda calculation using selectedMonthPeriod and filtered by active Sales / SPV
   const dendaResult = useMemo(() => {
-    return calculateSalesSpvDenda(bills, selectedMonthPeriod);
-  }, [bills, selectedMonthPeriod]);
+    const raw = calculateSalesSpvDenda(periodBills, selectedMonthPeriod);
+    if (filters.SALES && filters.SALES !== 'ALL') {
+      const sUpper = filters.SALES.toUpperCase();
+      return {
+        ...raw,
+        salesDendaList: raw.salesDendaList.filter((s) => s.personName.toUpperCase() === sUpper),
+      };
+    }
+    if (filters.SPV && filters.SPV !== 'ALL') {
+      const spvUpper = filters.SPV.toUpperCase();
+      return {
+        ...raw,
+        spvDendaList: raw.spvDendaList.filter((s) => s.personName.toUpperCase() === spvUpper),
+      };
+    }
+    return raw;
+  }, [periodBills, selectedMonthPeriod, filters.SALES, filters.SPV]);
 
   // Summary Metrics based on periodBills
   const summaryMetrics = useMemo(() => {

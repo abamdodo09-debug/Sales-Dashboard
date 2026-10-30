@@ -4,6 +4,7 @@ import {
   FilterState,
   SellInSellOutDimension,
   SellInSellOutItem,
+  SellInSellOutSummary,
 } from '../types/dashboard';
 import {
   calculateSellInVsSellOut,
@@ -37,13 +38,17 @@ import {
 
 interface SellInVsSellOutViewProps {
   records: TransactionRecord[];
+  allRecords?: TransactionRecord[];
   filters: FilterState;
 }
 
 export const SellInVsSellOutView: React.FC<SellInVsSellOutViewProps> = ({
   records,
+  allRecords,
   filters,
 }) => {
+  const sourceRecords = allRecords && allRecords.length > 0 ? allRecords : records;
+
   // Dimension & Filter states
   const [activeDimension, setActiveDimension] = useState<SellInSellOutDimension>('store');
   const [selectedMonth, setSelectedMonth] = useState<string>('SEPTEMBER');
@@ -69,39 +74,135 @@ export const SellInVsSellOutView: React.FC<SellInVsSellOutViewProps> = ({
     }
   }, [filters.TAHUN]);
 
+  useEffect(() => {
+    if (filters.REGION && filters.REGION !== 'ALL') {
+      setSelectedArea(filters.REGION);
+    } else if (filters.REGION === 'ALL') {
+      setSelectedArea('ALL');
+    }
+  }, [filters.REGION]);
+
   // Available Areas
   const availableAreas = useMemo(() => {
     const set = new Set<string>();
-    records.forEach((r) => {
+    sourceRecords.forEach((r) => {
       if (r.COVER_AREA) set.add(r.COVER_AREA);
+      if (r.REGION) set.add(r.REGION);
     });
     return Array.from(set).sort();
-  }, [records]);
+  }, [sourceRecords]);
 
   // Calculate comparison data
-  const { items, summary } = useMemo(() => {
+  const { items: rawItems, summary: baseSummary } = useMemo(() => {
     return calculateSellInVsSellOut(
-      records,
+      sourceRecords,
       activeDimension,
       selectedMonth,
       selectedYear,
       selectedArea
     );
-  }, [records, activeDimension, selectedMonth, selectedYear, selectedArea]);
+  }, [sourceRecords, activeDimension, selectedMonth, selectedYear, selectedArea]);
 
-  // Filter items by search query and onlyOver20 toggle
+  const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
+
+  // Filter items by search query, onlyOver20 toggle, and global filters
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
+    return rawItems.filter((item) => {
       if (onlyOver20 && !item.isOver20Percent) return false;
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        item.name.toLowerCase().includes(q) ||
-        (item.secondaryInfo && item.secondaryInfo.toLowerCase().includes(q)) ||
-        (item.area && item.area.toLowerCase().includes(q))
-      );
+
+      // Global Sales Filter
+      if (filters.SALES && filters.SALES !== 'ALL') {
+        const targetSales = filters.SALES.toUpperCase();
+        if (activeDimension === 'sales') {
+          if (item.name.toUpperCase() !== targetSales) return false;
+        } else if (item.salesName) {
+          if (item.salesName.toUpperCase() !== targetSales) return false;
+        }
+      }
+
+      // Global SPV Filter
+      if (filters.SPV && filters.SPV !== 'ALL') {
+        const targetSpv = filters.SPV.toUpperCase();
+        if (activeDimension === 'spv') {
+          if (item.name.toUpperCase() !== targetSpv) return false;
+        } else if (item.spvName) {
+          if (item.spvName.toUpperCase() !== targetSpv) return false;
+        }
+      }
+
+      // Global Store Filter
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL') {
+        const targetStore = filters.NAMA_STORE.toUpperCase();
+        if (activeDimension === 'store') {
+          if (item.name.toUpperCase() !== targetStore) return false;
+        } else if (item.storeName) {
+          if (item.storeName.toUpperCase() !== targetStore) return false;
+        }
+      }
+
+      // Global Region Filter
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const targetRegion = filters.REGION.toUpperCase();
+        const itemRegion = (item.region || '').toUpperCase();
+        const itemArea = (item.area || '').toUpperCase();
+        if (itemRegion !== targetRegion && itemArea !== targetRegion) return false;
+      }
+
+      // Free Search
+      if (effectiveSearch) {
+        const match =
+          item.name.toLowerCase().includes(effectiveSearch) ||
+          (item.secondaryInfo && item.secondaryInfo.toLowerCase().includes(effectiveSearch)) ||
+          (item.area && item.area.toLowerCase().includes(effectiveSearch)) ||
+          (item.region && item.region.toLowerCase().includes(effectiveSearch)) ||
+          (item.storeName && item.storeName.toLowerCase().includes(effectiveSearch)) ||
+          (item.salesName && item.salesName.toLowerCase().includes(effectiveSearch)) ||
+          (item.trainerName && item.trainerName.toLowerCase().includes(effectiveSearch)) ||
+          (item.spvName && item.spvName.toLowerCase().includes(effectiveSearch));
+        if (!match) return false;
+      }
+
+      return true;
     });
-  }, [items, onlyOver20, searchQuery]);
+  }, [rawItems, onlyOver20, effectiveSearch, filters, activeDimension]);
+
+  // Recalculated summary KPIs from filteredItems
+  const summary: SellInSellOutSummary = useMemo(() => {
+    const hasFilter =
+      (filters.SALES && filters.SALES !== 'ALL') ||
+      (filters.SPV && filters.SPV !== 'ALL') ||
+      (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL') ||
+      (filters.REGION && filters.REGION !== 'ALL') ||
+      Boolean(effectiveSearch) ||
+      onlyOver20;
+
+    if (!hasFilter) return baseSummary;
+
+    const totalSellIn = filteredItems.reduce((acc, i) => acc + i.sellInValue, 0);
+    const totalSellOut = filteredItems.reduce((acc, i) => acc + i.sellOutValue, 0);
+    const totalGapValue = totalSellIn - totalSellOut;
+    const avgGapPercent = totalSellIn > 0 ? (totalGapValue / totalSellIn) * 100 : 0;
+    const overallSellThroughPercent = totalSellIn > 0 ? (totalSellOut / totalSellIn) * 100 : 0;
+    const over20Count = filteredItems.filter((i) => i.isOver20Percent).length;
+    const overstockCount = filteredItems.filter((i) => i.statusType === 'overstock').length;
+    const stockoutRiskCount = filteredItems.filter((i) => i.statusType === 'stockout_risk').length;
+    const healthyCount = filteredItems.filter((i) => i.statusType === 'healthy').length;
+
+    return {
+      periodMonth: selectedMonth,
+      periodYear: selectedYear,
+      totalSellIn,
+      totalSellOut,
+      totalGapValue,
+      avgGapPercent,
+      overallSellThroughPercent,
+      totalEntitiesCount: filteredItems.length,
+      over20Count,
+      overstockCount,
+      stockoutRiskCount,
+      healthyCount,
+    };
+  }, [baseSummary, filteredItems, filters, effectiveSearch, onlyOver20, selectedMonth, selectedYear]);
 
   // Dimension metadata labels
   const dimensionMeta: Record<

@@ -93,17 +93,30 @@ export const FocusProductBaManagement: React.FC<FocusProductBaManagementProps> =
 
   // Filtered List
   const filteredList = useMemo(() => {
+    const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
     return baFocusList.filter((b) => {
-      // Search
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        b.baName.toLowerCase().includes(q) ||
-        b.baNumber.toLowerCase().includes(q) ||
-        b.storeName.toLowerCase().includes(q) ||
-        b.salesName.toLowerCase().includes(q) ||
-        b.spv.toLowerCase().includes(q);
+      // Global Sales
+      if (filters.SALES && filters.SALES !== 'ALL' && b.salesName.toUpperCase() !== filters.SALES.toUpperCase()) {
+        return false;
+      }
 
-      if (!matchesSearch) return false;
+      // Global SPV
+      if (filters.SPV && filters.SPV !== 'ALL' && b.spv.toUpperCase() !== filters.SPV.toUpperCase()) {
+        return false;
+      }
+
+      // Global Store Name
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL' && b.storeName.toUpperCase() !== filters.NAMA_STORE.toUpperCase()) {
+        return false;
+      }
+
+      // Global Region
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const reg = filters.REGION.toUpperCase();
+        if ((b.region || '').toUpperCase() !== reg && (b.coverArea || '').toUpperCase() !== reg) {
+          return false;
+        }
+      }
 
       // Status Filter
       if (statusFilter !== 'all' && b.status !== statusFilter) return false;
@@ -111,21 +124,45 @@ export const FocusProductBaManagement: React.FC<FocusProductBaManagementProps> =
       // Area Filter
       if (selectedArea !== 'all' && b.coverArea !== selectedArea) return false;
 
+      // Free Search
+      if (effectiveSearch) {
+        const matchesSearch =
+          b.baName.toLowerCase().includes(effectiveSearch) ||
+          b.baNumber.toLowerCase().includes(effectiveSearch) ||
+          b.storeName.toLowerCase().includes(effectiveSearch) ||
+          b.salesName.toLowerCase().includes(effectiveSearch) ||
+          b.spv.toLowerCase().includes(effectiveSearch) ||
+          (b.coverArea && b.coverArea.toLowerCase().includes(effectiveSearch)) ||
+          (b.region && b.region.toLowerCase().includes(effectiveSearch));
+        if (!matchesSearch) return false;
+      }
+
       return true;
     });
-  }, [baFocusList, searchQuery, statusFilter, selectedArea]);
+  }, [baFocusList, searchQuery, statusFilter, selectedArea, filters]);
 
   // Aggregate Metrics
   const stats = useMemo(() => {
-    const totalTarget = baFocusList.reduce((acc, b) => acc + b.targetPcs, 0);
-    const totalActual = baFocusList.reduce((acc, b) => acc + b.actualPcs, 0);
-    const totalIncentive = baFocusList.reduce((acc, b) => acc + b.incentive, 0);
-    const totalPenalty = baFocusList.reduce((acc, b) => acc + b.penalty, 0);
+    const hasActiveFilter =
+      statusFilter !== 'all' ||
+      selectedArea !== 'all' ||
+      (filters.SALES && filters.SALES !== 'ALL') ||
+      (filters.SPV && filters.SPV !== 'ALL') ||
+      (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL') ||
+      (filters.REGION && filters.REGION !== 'ALL') ||
+      Boolean((searchQuery || filters.searchQuery || '').trim());
+
+    const targetList = hasActiveFilter ? filteredList : baFocusList;
+
+    const totalTarget = targetList.reduce((acc, b) => acc + b.targetPcs, 0);
+    const totalActual = targetList.reduce((acc, b) => acc + b.actualPcs, 0);
+    const totalIncentive = targetList.reduce((acc, b) => acc + b.incentive, 0);
+    const totalPenalty = targetList.reduce((acc, b) => acc + b.penalty, 0);
     const netImpact = totalIncentive - totalPenalty;
 
-    const countInsentif = baFocusList.filter((b) => b.status === 'insentif').length;
-    const countAman = baFocusList.filter((b) => b.status === 'aman').length;
-    const countDenda = baFocusList.filter((b) => b.status === 'denda').length;
+    const countInsentif = targetList.filter((b) => b.status === 'insentif').length;
+    const countAman = targetList.filter((b) => b.status === 'aman').length;
+    const countDenda = targetList.filter((b) => b.status === 'denda').length;
 
     const avgAchievement = totalTarget > 0 ? (totalActual / totalTarget) * 100 : 0;
 
@@ -139,9 +176,9 @@ export const FocusProductBaManagement: React.FC<FocusProductBaManagementProps> =
       countAman,
       countDenda,
       avgAchievement,
-      totalBa: baFocusList.length,
+      totalBa: targetList.length,
     };
-  }, [baFocusList]);
+  }, [baFocusList, filteredList, statusFilter, selectedArea, filters, searchQuery]);
 
   // Open Edit Modal
   const handleOpenEdit = (item: BaFocusProductItem) => {

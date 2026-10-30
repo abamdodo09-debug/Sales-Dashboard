@@ -3,6 +3,7 @@ import {
   TransactionRecord,
   FilterState,
   StoreBaContributionItem,
+  StoreBaContributionSummary,
 } from '../types/dashboard';
 import {
   calculateStoreBaContribution,
@@ -34,6 +35,7 @@ import {
 
 interface StoreBaContributionViewProps {
   records: TransactionRecord[];
+  allRecords?: TransactionRecord[];
   filters: FilterState;
 }
 
@@ -41,8 +43,11 @@ type StoreFilterType = 'all' | 'ba_only' | 'non_ba_only';
 
 export const StoreBaContributionView: React.FC<StoreBaContributionViewProps> = ({
   records,
+  allRecords,
   filters,
 }) => {
+  const sourceRecords = allRecords && allRecords.length > 0 ? allRecords : records;
+
   // State for filters
   const [selectedMonth, setSelectedMonth] = useState<string>('SEPTEMBER');
   const [selectedYear, setSelectedYear] = useState<number>(2026);
@@ -67,41 +72,160 @@ export const StoreBaContributionView: React.FC<StoreBaContributionViewProps> = (
     }
   }, [filters.TAHUN]);
 
+  useEffect(() => {
+    if (filters.REGION && filters.REGION !== 'ALL') {
+      setSelectedArea(filters.REGION);
+    } else if (filters.REGION === 'ALL') {
+      setSelectedArea('ALL');
+    }
+  }, [filters.REGION]);
+
   // Available Areas from records
   const availableAreas = useMemo(() => {
     const set = new Set<string>();
-    records.forEach((r) => {
+    sourceRecords.forEach((r) => {
       if (r.COVER_AREA) set.add(r.COVER_AREA);
+      if (r.REGION) set.add(r.REGION);
     });
     return Array.from(set).sort();
-  }, [records]);
+  }, [sourceRecords]);
 
   // Compute contribution analytics
-  const { stores, summary } = useMemo(() => {
+  const { stores: rawStores, summary: baseSummary } = useMemo(() => {
     return calculateStoreBaContribution(
-      records,
+      sourceRecords,
       selectedMonth,
       selectedYear,
       selectedArea
     );
-  }, [records, selectedMonth, selectedYear, selectedArea]);
+  }, [sourceRecords, selectedMonth, selectedYear, selectedArea]);
 
-  // Filter stores by tab & search query
+  const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
+
+  // Filter stores by tab, global filters, and search query
   const filteredStores = useMemo(() => {
-    return stores.filter((s) => {
+    return rawStores.filter((s) => {
       if (storeFilterType === 'ba_only' && !s.hasBa) return false;
       if (storeFilterType === 'non_ba_only' && s.hasBa) return false;
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      return (
-        s.storeName.toLowerCase().includes(q) ||
-        s.baName.toLowerCase().includes(q) ||
-        s.salesName.toLowerCase().includes(q) ||
-        s.coverArea.toLowerCase().includes(q) ||
-        s.spvName.toLowerCase().includes(q)
-      );
+
+      // Global Sales Filter
+      if (filters.SALES && filters.SALES !== 'ALL' && s.salesName.toUpperCase() !== filters.SALES.toUpperCase()) {
+        return false;
+      }
+
+      // Global SPV Filter
+      if (filters.SPV && filters.SPV !== 'ALL' && s.spvName.toUpperCase() !== filters.SPV.toUpperCase()) {
+        return false;
+      }
+
+      // Global Store Filter
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL' && s.storeName.toUpperCase() !== filters.NAMA_STORE.toUpperCase()) {
+        return false;
+      }
+
+      // Global Region Filter
+      if (filters.REGION && filters.REGION !== 'ALL') {
+        const targetRegion = filters.REGION.toUpperCase();
+        if (s.region.toUpperCase() !== targetRegion && s.coverArea.toUpperCase() !== targetRegion) {
+          return false;
+        }
+      }
+
+      // Free Search
+      if (effectiveSearch) {
+        const match =
+          s.storeName.toLowerCase().includes(effectiveSearch) ||
+          s.baName.toLowerCase().includes(effectiveSearch) ||
+          s.salesName.toLowerCase().includes(effectiveSearch) ||
+          s.coverArea.toLowerCase().includes(effectiveSearch) ||
+          s.spvName.toLowerCase().includes(effectiveSearch) ||
+          s.region.toLowerCase().includes(effectiveSearch);
+        if (!match) return false;
+      }
+
+      return true;
     });
-  }, [stores, storeFilterType, searchQuery]);
+  }, [rawStores, storeFilterType, effectiveSearch, filters]);
+
+  // Recalculated summary metrics from filteredStores
+  const summary: StoreBaContributionSummary = useMemo(() => {
+    const hasActiveFilter =
+      storeFilterType !== 'all' ||
+      (filters.SALES && filters.SALES !== 'ALL') ||
+      (filters.SPV && filters.SPV !== 'ALL') ||
+      (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL') ||
+      (filters.REGION && filters.REGION !== 'ALL') ||
+      Boolean(effectiveSearch);
+
+    if (!hasActiveFilter) return baseSummary;
+
+    const totalStoresCount = filteredStores.length;
+    const tokoBaList = filteredStores.filter((s) => s.hasBa);
+    const tokoNonBaList = filteredStores.filter((s) => !s.hasBa);
+
+    const tokoBaCount = tokoBaList.length;
+    const tokoNonBaCount = tokoNonBaList.length;
+
+    const totalAreaRevenue = filteredStores.reduce((acc, s) => acc + s.totalRevenue, 0);
+    const totalAreaQty = filteredStores.reduce((acc, s) => acc + s.totalQtySold, 0);
+
+    const tokoBaTotalRevenue = tokoBaList.reduce((sum, s) => sum + s.totalRevenue, 0);
+    const tokoNonBaTotalRevenue = tokoNonBaList.reduce((sum, s) => sum + s.totalRevenue, 0);
+
+    const tokoBaRevenuePercent =
+      totalAreaRevenue > 0 ? Math.round((tokoBaTotalRevenue / totalAreaRevenue) * 1000) / 10 : 0;
+    const tokoNonBaRevenuePercent =
+      totalAreaRevenue > 0 ? Math.round((tokoNonBaTotalRevenue / totalAreaRevenue) * 1000) / 10 : 0;
+
+    const tokoBaStorePercent =
+      totalStoresCount > 0 ? Math.round((tokoBaCount / totalStoresCount) * 1000) / 10 : 0;
+    const tokoNonBaStorePercent =
+      totalStoresCount > 0 ? Math.round((tokoNonBaCount / totalStoresCount) * 1000) / 10 : 0;
+
+    const tokoBaAvgRevenuePerStore =
+      tokoBaCount > 0 ? Math.round(tokoBaTotalRevenue / tokoBaCount) : 0;
+    const tokoNonBaAvgRevenuePerStore =
+      tokoNonBaCount > 0 ? Math.round(tokoNonBaTotalRevenue / tokoNonBaCount) : 0;
+
+    const tokoBaTotalQty = tokoBaList.reduce((sum, s) => sum + s.totalQtySold, 0);
+    const tokoNonBaTotalQty = tokoNonBaList.reduce((sum, s) => sum + s.totalQtySold, 0);
+
+    const tokoBaFocusPcs = tokoBaList.reduce((sum, s) => sum + s.focusProductPcs, 0);
+    const tokoNonBaFocusPcs = tokoNonBaList.reduce((sum, s) => sum + s.focusProductPcs, 0);
+
+    const productivityMultiplier =
+      tokoNonBaAvgRevenuePerStore > 0
+        ? Math.round((tokoBaAvgRevenuePerStore / tokoNonBaAvgRevenuePerStore) * 10) / 10
+        : 1;
+
+    const potentialBaCandidateStoresCount = tokoNonBaList.filter(
+      (s) => s.performanceClass && s.performanceClass.includes('Pasang BA')
+    ).length;
+
+    return {
+      periodMonth: selectedMonth,
+      periodYear: selectedYear,
+      totalAreaRevenue,
+      totalAreaQty,
+      totalStoresCount,
+      tokoBaCount,
+      tokoBaStorePercent,
+      tokoBaTotalRevenue,
+      tokoBaRevenuePercent,
+      tokoBaAvgRevenuePerStore,
+      tokoBaTotalQty,
+      tokoBaFocusPcs,
+      tokoNonBaCount,
+      tokoNonBaStorePercent,
+      tokoNonBaTotalRevenue,
+      tokoNonBaRevenuePercent,
+      tokoNonBaAvgRevenuePerStore,
+      tokoNonBaTotalQty,
+      tokoNonBaFocusPcs,
+      productivityMultiplier,
+      potentialBaCandidateStoresCount,
+    };
+  }, [baseSummary, filteredStores, storeFilterType, filters, effectiveSearch, selectedMonth, selectedYear]);
 
   // Handle Excel Export
   const handleExport = () => {

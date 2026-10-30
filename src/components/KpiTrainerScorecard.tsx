@@ -274,24 +274,32 @@ export const KpiTrainerScorecard: React.FC<KpiTrainerScorecardProps> = ({ filter
 
   // Filtered KPI items for Active Period Scorecard Table
   const currentPeriodItems = useMemo(() => {
+    const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
     return kpiList
       .filter((item) => (item.monthPeriod || 'OKTOBER 2026') === selectedMonthPeriod)
       .filter((item) => {
-        if (!searchQuery.trim()) return true;
-        const q = searchQuery.toLowerCase();
+        // Global Region filter
+        if (filters.REGION && filters.REGION !== 'ALL') {
+          const reg = filters.REGION.toUpperCase();
+          if (item.region.toUpperCase() !== reg && item.areaCovered.toUpperCase() !== reg) {
+            return false;
+          }
+        }
+
+        if (!effectiveSearch) return true;
         return (
-          item.trainerName.toLowerCase().includes(q) ||
-          item.areaCovered.toLowerCase().includes(q) ||
-          item.region.toLowerCase().includes(q)
+          item.trainerName.toLowerCase().includes(effectiveSearch) ||
+          item.areaCovered.toLowerCase().includes(effectiveSearch) ||
+          item.region.toLowerCase().includes(effectiveSearch)
         );
       });
-  }, [kpiList, selectedMonthPeriod, searchQuery]);
+  }, [kpiList, selectedMonthPeriod, searchQuery, filters.REGION, filters.searchQuery]);
 
   // Overall Statistics for Active Period
   const activePeriodStats = useMemo(() => {
-    const items = kpiList.filter((k) => (k.monthPeriod || 'OKTOBER 2026') === selectedMonthPeriod);
+    const items = currentPeriodItems;
     const count = items.length || 1;
-    const avgScore = items.reduce((acc, k) => acc + k.totalScore, 0) / count;
+    const avgScore = items.length > 0 ? items.reduce((acc, k) => acc + k.totalScore, 0) / count : 0;
     const cat80to100 = items.filter((k) => k.scoreCategory === '80-100').length;
     const cat70to79 = items.filter((k) => k.scoreCategory === '70-79').length;
     const cat10to69 = items.filter((k) => k.scoreCategory === '10-69').length;
@@ -305,7 +313,7 @@ export const KpiTrainerScorecard: React.FC<KpiTrainerScorecardProps> = ({ filter
       cat10to69,
       totalSellOut,
     };
-  }, [kpiList, selectedMonthPeriod]);
+  }, [currentPeriodItems]);
 
   // -------------------------------------------------------------
   // ALL-TIME / FILTERED HISTORY ANALYSIS

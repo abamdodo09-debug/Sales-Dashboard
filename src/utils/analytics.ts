@@ -263,22 +263,22 @@ export function filterRecords(
 ): TransactionRecord[] {
   return records.filter((r) => {
     // Bulan
-    if (filters.BULAN !== 'ALL' && r.BULAN !== filters.BULAN) return false;
+    if (filters.BULAN !== 'ALL' && (r.BULAN || '').trim().toUpperCase() !== filters.BULAN.trim().toUpperCase()) return false;
 
     // Tahun
-    if (filters.TAHUN !== 'ALL' && String(r.TAHUN) !== String(filters.TAHUN)) return false;
+    if (filters.TAHUN !== 'ALL' && String(r.TAHUN || '').trim() !== String(filters.TAHUN).trim()) return false;
 
     // Sales
-    if (filters.SALES !== 'ALL' && r.SALES !== filters.SALES) return false;
+    if (filters.SALES !== 'ALL' && (r.SALES || '').trim().toUpperCase() !== filters.SALES.trim().toUpperCase()) return false;
 
     // SPV
-    if (filters.SPV !== 'ALL' && r.SPV !== filters.SPV) return false;
+    if (filters.SPV !== 'ALL' && (r.SPV || '').trim().toUpperCase() !== filters.SPV.trim().toUpperCase()) return false;
 
     // Brand
-    if (filters.BRAND !== 'ALL' && r.BRAND !== filters.BRAND) return false;
+    if (filters.BRAND !== 'ALL' && (r.BRAND || '').trim().toUpperCase() !== filters.BRAND.trim().toUpperCase()) return false;
 
     // Kategori
-    if (filters.KATEGORI && filters.KATEGORI !== 'ALL' && r.KATEGORI !== filters.KATEGORI) return false;
+    if (filters.KATEGORI && filters.KATEGORI !== 'ALL' && (r.KATEGORI || '').trim().toUpperCase() !== filters.KATEGORI.trim().toUpperCase()) return false;
 
     // Status Produk (Lifecycle Status)
     if (filters.STATUS_PRODUK && filters.STATUS_PRODUK !== 'ALL') {
@@ -287,36 +287,40 @@ export function filterRecords(
     }
 
     // Store
-    if (filters.NAMA_STORE !== 'ALL' && r.NAMA_STORE !== filters.NAMA_STORE) return false;
+    if (filters.NAMA_STORE !== 'ALL' && (r.NAMA_STORE || '').trim().toUpperCase() !== filters.NAMA_STORE.trim().toUpperCase()) return false;
 
     // Region
-    if (filters.REGION !== 'ALL' && r.REGION !== filters.REGION) return false;
+    if (filters.REGION !== 'ALL' && (r.REGION || '').trim().toUpperCase() !== filters.REGION.trim().toUpperCase()) return false;
 
     // Ket
-    if (filters.KET !== 'ALL' && r.KET !== filters.KET) return false;
+    if (filters.KET !== 'ALL' && (r.KET || '').trim().toUpperCase() !== filters.KET.trim().toUpperCase()) return false;
 
     // SKU
     if (filters.SKU !== 'ALL') {
-      const matchSku = r.SKU.toLowerCase().includes(filters.SKU.toLowerCase()) ||
-        r.NO_SKU.includes(filters.SKU) ||
-        r.SPU.toLowerCase().includes(filters.SKU.toLowerCase());
+      const matchSku =
+        (r.SKU || '').toLowerCase().includes(filters.SKU.toLowerCase()) ||
+        (r.NO_SKU || '').includes(filters.SKU) ||
+        (r.SPU || '').toLowerCase().includes(filters.SKU.toLowerCase());
       if (!matchSku) return false;
     }
 
     // Free text search
-    if (filters.searchQuery.trim()) {
-      const q = filters.searchQuery.toLowerCase();
+    if (filters.searchQuery && filters.searchQuery.trim()) {
+      const q = filters.searchQuery.trim().toLowerCase();
       const match =
-        r.SKU.toLowerCase().includes(q) ||
+        (r.SKU && r.SKU.toLowerCase().includes(q)) ||
         (r.KATEGORI && r.KATEGORI.toLowerCase().includes(q)) ||
         (r.STATUS_PRODUK && r.STATUS_PRODUK.toLowerCase().includes(q)) ||
-        r.NAMA_STORE.toLowerCase().includes(q) ||
-        r.SALES.toLowerCase().includes(q) ||
-        r.SPV.toLowerCase().includes(q) ||
-        r.BRAND.toLowerCase().includes(q) ||
-        r.REGION.toLowerCase().includes(q) ||
-        r.NO_SKU.toLowerCase().includes(q) ||
-        r.SPU.toLowerCase().includes(q);
+        (r.NAMA_STORE && r.NAMA_STORE.toLowerCase().includes(q)) ||
+        (r.SALES && r.SALES.toLowerCase().includes(q)) ||
+        (r.SPV && r.SPV.toLowerCase().includes(q)) ||
+        (r.BRAND && r.BRAND.toLowerCase().includes(q)) ||
+        (r.REGION && r.REGION.toLowerCase().includes(q)) ||
+        (r.NO_SKU && r.NO_SKU.toLowerCase().includes(q)) ||
+        (r.SPU && r.SPU.toLowerCase().includes(q)) ||
+        (r.BA && r.BA.toLowerCase().includes(q)) ||
+        (r.COVER_AREA && r.COVER_AREA.toLowerCase().includes(q)) ||
+        (r.KET && r.KET.toLowerCase().includes(q));
       if (!match) return false;
     }
 
@@ -332,19 +336,19 @@ export function getCascadingOptions(
   // Compute option sets with partial filters applied
   const filterIgnoring = (ignoreKey: keyof DashboardFilters) => {
     return allRecords.filter((r) => {
-      if (ignoreKey !== 'BULAN' && currentFilters.BULAN !== 'ALL' && r.BULAN !== currentFilters.BULAN) return false;
-      if (ignoreKey !== 'TAHUN' && currentFilters.TAHUN !== 'ALL' && String(r.TAHUN) !== String(currentFilters.TAHUN)) return false;
-      if (ignoreKey !== 'SALES' && currentFilters.SALES !== 'ALL' && r.SALES !== currentFilters.SALES) return false;
-      if (ignoreKey !== 'SPV' && currentFilters.SPV !== 'ALL' && r.SPV !== currentFilters.SPV) return false;
-      if (ignoreKey !== 'BRAND' && currentFilters.BRAND !== 'ALL' && r.BRAND !== currentFilters.BRAND) return false;
-      if (ignoreKey !== 'KATEGORI' && currentFilters.KATEGORI && currentFilters.KATEGORI !== 'ALL' && r.KATEGORI !== currentFilters.KATEGORI) return false;
+      if (ignoreKey !== 'BULAN' && currentFilters.BULAN !== 'ALL' && (r.BULAN || '').trim().toUpperCase() !== currentFilters.BULAN.trim().toUpperCase()) return false;
+      if (ignoreKey !== 'TAHUN' && currentFilters.TAHUN !== 'ALL' && String(r.TAHUN || '').trim() !== String(currentFilters.TAHUN).trim()) return false;
+      if (ignoreKey !== 'SALES' && currentFilters.SALES !== 'ALL' && (r.SALES || '').trim().toUpperCase() !== currentFilters.SALES.trim().toUpperCase()) return false;
+      if (ignoreKey !== 'SPV' && currentFilters.SPV !== 'ALL' && (r.SPV || '').trim().toUpperCase() !== currentFilters.SPV.trim().toUpperCase()) return false;
+      if (ignoreKey !== 'BRAND' && currentFilters.BRAND !== 'ALL' && (r.BRAND || '').trim().toUpperCase() !== currentFilters.BRAND.trim().toUpperCase()) return false;
+      if (ignoreKey !== 'KATEGORI' && currentFilters.KATEGORI && currentFilters.KATEGORI !== 'ALL' && (r.KATEGORI || '').trim().toUpperCase() !== currentFilters.KATEGORI.trim().toUpperCase()) return false;
       if (ignoreKey !== 'STATUS_PRODUK' && currentFilters.STATUS_PRODUK && currentFilters.STATUS_PRODUK !== 'ALL') {
         const st = resolveProductStatus(r);
         if (st !== currentFilters.STATUS_PRODUK) return false;
       }
-      if (ignoreKey !== 'NAMA_STORE' && currentFilters.NAMA_STORE !== 'ALL' && r.NAMA_STORE !== currentFilters.NAMA_STORE) return false;
-      if (ignoreKey !== 'REGION' && currentFilters.REGION !== 'ALL' && r.REGION !== currentFilters.REGION) return false;
-      if (ignoreKey !== 'KET' && currentFilters.KET !== 'ALL' && r.KET !== currentFilters.KET) return false;
+      if (ignoreKey !== 'NAMA_STORE' && currentFilters.NAMA_STORE !== 'ALL' && (r.NAMA_STORE || '').trim().toUpperCase() !== currentFilters.NAMA_STORE.trim().toUpperCase()) return false;
+      if (ignoreKey !== 'REGION' && currentFilters.REGION !== 'ALL' && (r.REGION || '').trim().toUpperCase() !== currentFilters.REGION.trim().toUpperCase()) return false;
+      if (ignoreKey !== 'KET' && currentFilters.KET !== 'ALL' && (r.KET || '').trim().toUpperCase() !== currentFilters.KET.trim().toUpperCase()) return false;
       return true;
     });
   };

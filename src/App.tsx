@@ -605,7 +605,8 @@ export default function App() {
         {/* Tab: Rangkuman Kuartal (Executive Summary Sales, BA & Trainer) */}
         {activeTab === 'rangkuman_kuartal' && (
           <QuarterlySummaryView
-            records={records}
+            records={filteredRecords}
+            allRecords={records}
             filters={filters}
           />
         )}
@@ -622,7 +623,8 @@ export default function App() {
         {/* Tab: Perbandingan Sell In vs Sell Out (Selisih Nilai & Deteksi >20%) */}
         {activeTab === 'sell_in_vs_sell_out' && (
           <SellInVsSellOutView
-            records={records}
+            records={filteredRecords}
+            allRecords={records}
             filters={filters}
           />
         )}
@@ -675,7 +677,8 @@ export default function App() {
         {/* Tab: Kontribusi Toko BA vs Non-BA */}
         {activeTab === 'kontribusi_toko_ba' && (
           <StoreBaContributionView
-            records={records}
+            records={filteredRecords}
+            allRecords={records}
             filters={filters}
           />
         )}

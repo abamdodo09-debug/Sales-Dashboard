@@ -43,6 +43,7 @@ import {
 
 interface QuarterlySummaryViewProps {
   records: TransactionRecord[];
+  allRecords?: TransactionRecord[];
   filters: FilterState;
 }
 
@@ -50,8 +51,12 @@ type SubTabKey = 'all' | 'sales' | 'ba' | 'trainer';
 
 export const QuarterlySummaryView: React.FC<QuarterlySummaryViewProps> = ({
   records,
+  allRecords,
   filters,
 }) => {
+  // Use full records if available to ensure historical quarter months (e.g. Q3: Jul-Sep) are present
+  const sourceRecords = allRecords && allRecords.length > 0 ? allRecords : records;
+
   // State for Quarter, Year, Sub-tab, Search, and Detail Modal
   const [selectedQuarter, setSelectedQuarter] = useState<QuarterPeriodKey>('Q3');
   const [selectedYear, setSelectedYear] = useState<number>(2026);
@@ -90,68 +95,128 @@ export const QuarterlySummaryView: React.FC<QuarterlySummaryViewProps> = ({
     }
   }, [filters.SPV]);
 
+  useEffect(() => {
+    if (filters.REGION && filters.REGION !== 'ALL') {
+      setSelectedArea(filters.REGION);
+    }
+  }, [filters.REGION]);
+
   // Extract distinct areas & SPVs for dropdowns
   const availableAreas = useMemo(() => {
     const set = new Set<string>();
-    records.forEach((r) => {
+    sourceRecords.forEach((r) => {
       if (r.COVER_AREA) set.add(r.COVER_AREA);
+      if (r.REGION) set.add(r.REGION);
     });
     return Array.from(set).sort();
-  }, [records]);
+  }, [sourceRecords]);
 
   const availableSpvs = useMemo(() => {
     const set = new Set<string>();
-    records.forEach((r) => {
+    sourceRecords.forEach((r) => {
       if (r.SPV) set.add(r.SPV);
     });
     return Array.from(set).sort();
-  }, [records]);
+  }, [sourceRecords]);
 
   // Compute quarterly calculations
-  const summaryData = useMemo(() => {
+  const rawSummaryData = useMemo(() => {
     return calculateQuarterlySummary(
-      records,
+      sourceRecords,
       selectedQuarter,
       selectedYear,
       selectedArea,
       selectedSpv
     );
-  }, [records, selectedQuarter, selectedYear, selectedArea, selectedSpv]);
+  }, [sourceRecords, selectedQuarter, selectedYear, selectedArea, selectedSpv]);
 
-  const { overall, salesList, baList, trainerList } = summaryData;
+  const { overall: baseOverall, salesList, baList, trainerList } = rawSummaryData;
 
-  // Filtered lists based on search query
+  // Filtered lists based on global filters and search queries
+  const effectiveSearch = (searchQuery || filters.searchQuery || '').trim().toLowerCase();
+
   const filteredSales = useMemo(() => {
-    if (!searchQuery.trim()) return salesList;
-    const q = searchQuery.toLowerCase();
-    return salesList.filter(
-      (s) =>
-        s.salesName.toLowerCase().includes(q) ||
-        s.coverArea.toLowerCase().includes(q)
-    );
-  }, [salesList, searchQuery]);
+    return salesList.filter((s) => {
+      if (filters.SALES && filters.SALES !== 'ALL' && s.salesName.toUpperCase() !== filters.SALES.toUpperCase()) return false;
+      if (filters.SPV && filters.SPV !== 'ALL' && s.spvName.toUpperCase() !== filters.SPV.toUpperCase()) return false;
+      if (filters.REGION && filters.REGION !== 'ALL' && (s.region || '').toUpperCase() !== filters.REGION.toUpperCase() && (s.coverArea || '').toUpperCase() !== filters.REGION.toUpperCase()) return false;
+      if (!effectiveSearch) return true;
+      return (
+        s.salesName.toLowerCase().includes(effectiveSearch) ||
+        s.coverArea.toLowerCase().includes(effectiveSearch) ||
+        s.spvName.toLowerCase().includes(effectiveSearch) ||
+        (s.region && s.region.toLowerCase().includes(effectiveSearch))
+      );
+    });
+  }, [salesList, effectiveSearch, filters.SALES, filters.SPV, filters.REGION]);
 
   const filteredBa = useMemo(() => {
-    if (!searchQuery.trim()) return baList;
-    const q = searchQuery.toLowerCase();
-    return baList.filter(
-      (b) =>
-        b.baName.toLowerCase().includes(q) ||
-        b.storeName.toLowerCase().includes(q) ||
-        b.coverArea.toLowerCase().includes(q) ||
-        b.baNumber.toLowerCase().includes(q)
-    );
-  }, [baList, searchQuery]);
+    return baList.filter((b) => {
+      if (filters.SPV && filters.SPV !== 'ALL' && b.spvName && b.spvName.toUpperCase() !== filters.SPV.toUpperCase()) return false;
+      if (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL' && b.storeName.toUpperCase() !== filters.NAMA_STORE.toUpperCase()) return false;
+      if (filters.REGION && filters.REGION !== 'ALL' && (b.region || '').toUpperCase() !== filters.REGION.toUpperCase() && (b.coverArea || '').toUpperCase() !== filters.REGION.toUpperCase()) return false;
+      if (!effectiveSearch) return true;
+      return (
+        b.baName.toLowerCase().includes(effectiveSearch) ||
+        b.storeName.toLowerCase().includes(effectiveSearch) ||
+        b.coverArea.toLowerCase().includes(effectiveSearch) ||
+        b.baNumber.toLowerCase().includes(effectiveSearch) ||
+        (b.spvName && b.spvName.toLowerCase().includes(effectiveSearch))
+      );
+    });
+  }, [baList, effectiveSearch, filters.SPV, filters.NAMA_STORE, filters.REGION]);
 
   const filteredTrainer = useMemo(() => {
-    if (!searchQuery.trim()) return trainerList;
-    const q = searchQuery.toLowerCase();
-    return trainerList.filter(
-      (t) =>
-        t.trainerName.toLowerCase().includes(q) ||
-        t.areaCovered.toLowerCase().includes(q)
-    );
-  }, [trainerList, searchQuery]);
+    return trainerList.filter((t) => {
+      if (filters.REGION && filters.REGION !== 'ALL' && (t.areaCovered || '').toUpperCase() !== filters.REGION.toUpperCase() && (t.region || '').toUpperCase() !== filters.REGION.toUpperCase()) return false;
+      if (!effectiveSearch) return true;
+      return (
+        t.trainerName.toLowerCase().includes(effectiveSearch) ||
+        t.areaCovered.toLowerCase().includes(effectiveSearch)
+      );
+    });
+  }, [trainerList, effectiveSearch, filters.REGION]);
+
+  // Dynamically recalculated overall KPI summary cards for the filtered subset
+  const overall = useMemo(() => {
+    // If no sales or BA filter is active, return base overall
+    const hasActivePersonnelFilter =
+      (filters.SALES && filters.SALES !== 'ALL') ||
+      (filters.SPV && filters.SPV !== 'ALL') ||
+      (filters.REGION && filters.REGION !== 'ALL') ||
+      (filters.NAMA_STORE && filters.NAMA_STORE !== 'ALL') ||
+      Boolean(effectiveSearch);
+
+    if (!hasActivePersonnelFilter) return baseOverall;
+
+    const totalTargetArea = filteredSales.reduce((acc, s) => acc + s.quarterTarget, 0);
+    const totalActualArea = filteredSales.reduce((acc, s) => acc + s.quarterActual, 0);
+    const areaAchievementPercent = totalTargetArea > 0 ? (totalActualArea / totalTargetArea) * 100 : 0;
+
+    const avgSalesScore = filteredSales.length > 0 ? filteredSales.reduce((acc, s) => acc + s.avgKpiScore, 0) / filteredSales.length : 0;
+    const avgTrainerScore = filteredTrainer.length > 0 ? filteredTrainer.reduce((acc, t) => acc + t.avgKpiScore, 0) / filteredTrainer.length : 0;
+
+    return {
+      ...baseOverall,
+      totalTargetArea,
+      totalActualArea,
+      areaAchievementPercent,
+      totalSalesCount: filteredSales.length,
+      totalBaCount: filteredBa.length,
+      totalTrainerCount: filteredTrainer.length,
+      avgSalesKpiScore: avgSalesScore,
+      avgTrainerKpiScore: avgTrainerScore,
+    };
+  }, [baseOverall, filteredSales, filteredBa, filteredTrainer, filters, effectiveSearch]);
+
+  const summaryData = useMemo(() => {
+    return {
+      overall,
+      salesList: filteredSales,
+      baList: filteredBa,
+      trainerList: filteredTrainer,
+    };
+  }, [overall, filteredSales, filteredBa, filteredTrainer]);
 
   // Handle Excel export
   const handleExport = () => {
