@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Package, Sparkles, Flame, RotateCcw, Tag } from 'lucide-react';
 import { TransactionRecord } from '../types/dashboard';
-import { formatRupiah, formatNumber, formatPercent } from '../utils/analytics';
+import { formatRupiah, formatNumber, formatPercent, isFocusProduct, isNewProduct } from '../utils/analytics';
 
 interface SkuAnalysisProps {
   records: TransactionRecord[];
@@ -62,14 +62,14 @@ export const SkuAnalysis: React.FC<SkuAnalysisProps> = ({ records }) => {
       skuMap[k].returnsQty += Math.abs(qty);
     }
 
-    if (r.PRODUK_FOCUS === 'FOCUS') {
+    if (isFocusProduct(r.PRODUK_FOCUS)) {
       totalFocusValue += val;
       totalFocusValueQty += qty;
     } else {
       totalRegularValue += val;
     }
 
-    if (r.PRODUK_NEW === 'NEW') {
+    if (isNewProduct(r.PRODUK_NEW)) {
       totalNewValue += val;
     } else {
       totalExistingValue += val;

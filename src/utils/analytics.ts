@@ -186,17 +186,210 @@ export function resolveProductStatus(record: TransactionRecord): string {
   return '常规品 - Regular Products';
 }
 
-// Product type detection helpers
-export function isFocusProduct(val?: string): boolean {
-  if (!val) return false;
-  const upper = String(val).trim().toUpperCase();
-  return upper === 'FOCUS' || upper === 'FOKUS' || upper === 'YES' || upper === 'YA' || upper === 'TRUE' || upper === 'Y';
+// Category Classifier from SKU & Brand Name (Intelligent Fallback)
+export function detectCategoryFromSku(sku?: string, brand?: string): string {
+  const text = `${sku || ''} ${brand || ''}`.toUpperCase();
+  if (!text.trim()) return 'Lip Makeup';
+
+  // 1. Lip Makeup
+  if (
+    text.includes('LIP') ||
+    text.includes('TINT') ||
+    text.includes('LIPSTICK') ||
+    text.includes('LIP CREAM') ||
+    text.includes('LIP BALM') ||
+    text.includes('VINYL') ||
+    text.includes('MOUSSE TINT') ||
+    text.includes('GLOSS') ||
+    text.includes('CLOUD PAINT') ||
+    text.includes('INK-GLOSS') ||
+    text.includes('INK-MATTE') ||
+    text.includes('CHERRY MAKES') ||
+    text.includes('PEACH MAKES') ||
+    text.includes('SILVER MAKES')
+  ) {
+    return 'Lip Makeup';
+  }
+
+  // 2. Sunscreen / UV Protection
+  if (
+    text.includes('SUN') ||
+    text.includes('SUNSCREEN') ||
+    text.includes('SUNBRELLA') ||
+    text.includes('UV') ||
+    text.includes('SPF')
+  ) {
+    return 'Sunscreen';
+  }
+
+  // 3. Body Care
+  if (
+    text.includes('BODY') ||
+    text.includes('BODY SERUM') ||
+    text.includes('BODY SCRUB') ||
+    text.includes('LOTION') ||
+    text.includes('SHOWER') ||
+    text.includes('BATH') ||
+    text.includes('SOAP') ||
+    text.includes('SCRUB')
+  ) {
+    return 'Body Care';
+  }
+
+  // 4. Hair Care
+  if (
+    text.includes('HAIR') ||
+    text.includes('SHAMPOO') ||
+    text.includes('CONDITIONER') ||
+    text.includes('SCALP') ||
+    text.includes('HAIR OIL') ||
+    text.includes('HAIR MASK')
+  ) {
+    return 'Hair Care';
+  }
+
+  // 5. Complexion & Powder
+  if (
+    text.includes('POWDER') ||
+    text.includes('FOUNDATION') ||
+    text.includes('CUSHION') ||
+    text.includes('BLUSH') ||
+    text.includes('SETTING SPRAY') ||
+    text.includes('CONCEALER') ||
+    text.includes('COMPACT') ||
+    text.includes('LOOSE POWDER') ||
+    text.includes('GET A GRIP') ||
+    text.includes('BETTER THAN FILTER') ||
+    text.includes('COVER ME')
+  ) {
+    return 'Complexion & Powder';
+  }
+
+  // 6. Eye & Lash Tools
+  if (
+    text.includes('EYE') ||
+    text.includes('LASH') ||
+    text.includes('MASCARA') ||
+    text.includes('BROW') ||
+    text.includes('EYELINER') ||
+    text.includes('EYEBROW') ||
+    text.includes('CURLER') ||
+    text.includes('PUFF') ||
+    text.includes('SPONGE') ||
+    text.includes('BRUSH') ||
+    text.includes('GLAMFIX')
+  ) {
+    return 'Eye & Lash Tools';
+  }
+
+  // 7. Skincare
+  if (
+    text.includes('SERUM') ||
+    text.includes('MICELLAR') ||
+    text.includes('CLEANSER') ||
+    text.includes('TONER') ||
+    text.includes('MOISTURIZER') ||
+    text.includes('ACNE') ||
+    text.includes('RADIANCE') ||
+    text.includes('ESSENCE') ||
+    text.includes('CREAM') ||
+    text.includes('GEL') ||
+    text.includes('FACIAL') ||
+    text.includes('AMINO') ||
+    text.includes('CENTELLA') ||
+    text.includes('BARRIER')
+  ) {
+    return 'Skincare';
+  }
+
+  return 'Lip Makeup';
 }
 
-export function isNewProduct(val?: string): boolean {
+// Resolver for record category with automatic fallback
+export function resolveCategory(record: Partial<TransactionRecord>): string {
+  if (record.KATEGORI && record.KATEGORI.trim() && record.KATEGORI.trim().toUpperCase() !== 'LAINNYA' && record.KATEGORI.trim().toUpperCase() !== 'UNKNOWN') {
+    return record.KATEGORI.trim();
+  }
+  return detectCategoryFromSku(record.SKU, record.BRAND);
+}
+
+// Product type detection helpers
+export function isFocusProduct(val?: any): boolean {
   if (!val) return false;
+  if (typeof val === 'object') {
+    const r = val as any;
+    return (
+      isFocusProduct(r.PRODUK_FOCUS) ||
+      isFocusProduct(r['PRODUK FOKUS']) ||
+      isFocusProduct(r.PRODUK_FOKUS) ||
+      isFocusProduct(r['PRODUK FOCUS']) ||
+      isFocusProduct(r.FOCUS) ||
+      isFocusProduct(r.FOKUS) ||
+      isFocusProduct(r.focus)
+    );
+  }
   const upper = String(val).trim().toUpperCase();
-  return upper === 'NEW' || upper === 'BARU' || upper === 'YES' || upper === 'YA' || upper === 'TRUE' || upper === 'Y';
+  if (
+    !upper ||
+    upper === 'REGULAR' ||
+    upper === 'EXISTING' ||
+    upper === 'NO' ||
+    upper === 'FALSE' ||
+    upper === '-' ||
+    upper === 'BUKAN' ||
+    upper === 'NON' ||
+    upper === '0'
+  ) {
+    return false;
+  }
+  return (
+    upper.includes('FOKUS') ||
+    upper.includes('FOCUS') ||
+    upper === 'YES' ||
+    upper === 'YA' ||
+    upper === 'TRUE' ||
+    upper === 'Y' ||
+    upper === '1'
+  );
+}
+
+export function isNewProduct(val?: any): boolean {
+  if (!val) return false;
+  if (typeof val === 'object') {
+    const r = val as any;
+    return (
+      isNewProduct(r.PRODUK_NEW) ||
+      isNewProduct(r['PRODUK NEW']) ||
+      isNewProduct(r.PRODUK_BARU) ||
+      isNewProduct(r['PRODUK BARU']) ||
+      isNewProduct(r.NEW) ||
+      isNewProduct(r.BARU) ||
+      isNewProduct(r.new)
+    );
+  }
+  const upper = String(val).trim().toUpperCase();
+  if (
+    !upper ||
+    upper === 'EXISTING' ||
+    upper === 'REGULAR' ||
+    upper === 'NO' ||
+    upper === 'FALSE' ||
+    upper === '-' ||
+    upper === 'LAMA' ||
+    upper === 'OLD' ||
+    upper === '0'
+  ) {
+    return false;
+  }
+  return (
+    upper.includes('NEW') ||
+    upper.includes('BARU') ||
+    upper === 'YES' ||
+    upper === 'YA' ||
+    upper === 'TRUE' ||
+    upper === 'Y' ||
+    upper === '1'
+  );
 }
 
 export const MONTH_ORDER: Record<string, number> = {
@@ -670,7 +863,7 @@ export function aggregateCategoryDetails(records: TransactionRecord[]): Category
   let grandTotalValue = 0;
 
   for (const r of records) {
-    const cat = r.KATEGORI || 'Lainnya';
+    const cat = resolveCategory(r);
     if (!map[cat]) {
       map[cat] = {
         totalValue: 0,
@@ -698,7 +891,7 @@ export function aggregateCategoryDetails(records: TransactionRecord[]): Category
       map[cat].returnValue += Math.abs(val);
     }
 
-    if (r.PRODUK_FOCUS === 'FOCUS') {
+    if (isFocusProduct(r.PRODUK_FOCUS || r)) {
       map[cat].focusValue += val;
     } else {
       map[cat].regularValue += val;
@@ -901,11 +1094,24 @@ export function calculateComparisonGrowth(
 
   const activeYear = selectedFilters.TAHUN !== 'ALL' ? Number(selectedFilters.TAHUN) : 2026;
 
+  // Filter helper for non-temporal dimensions (preserves sales, brand, store, etc. across compared periods)
+  const matchOtherFilters = (r: TransactionRecord) => {
+    if (selectedFilters.BRAND && selectedFilters.BRAND !== 'ALL' && r.BRAND !== selectedFilters.BRAND) return false;
+    if (selectedFilters.SALES && selectedFilters.SALES !== 'ALL' && r.SALES !== selectedFilters.SALES) return false;
+    if (selectedFilters.SPV && selectedFilters.SPV !== 'ALL' && r.SPV !== selectedFilters.SPV) return false;
+    if (selectedFilters.REGION && selectedFilters.REGION !== 'ALL' && r.REGION !== selectedFilters.REGION) return false;
+    if (selectedFilters.NAMA_STORE && selectedFilters.NAMA_STORE !== 'ALL' && r.NAMA_STORE !== selectedFilters.NAMA_STORE) return false;
+    if (selectedFilters.KATEGORI && selectedFilters.KATEGORI !== 'ALL' && r.KATEGORI !== selectedFilters.KATEGORI) return false;
+    if (selectedFilters.KET && selectedFilters.KET !== 'ALL' && r.KET !== selectedFilters.KET) return false;
+    if (selectedFilters.SKU && selectedFilters.SKU !== 'ALL' && r.SKU !== selectedFilters.SKU) return false;
+    return true;
+  };
+
   if (mode === 'wow') {
     // Week vs Week
     const activeWeeks = Array.from(new Set(
       allRecords
-        .filter((r) => r.TAHUN === activeYear && (selectedFilters.BULAN === 'ALL' || r.BULAN === selectedFilters.BULAN))
+        .filter((r) => r.TAHUN === activeYear && (selectedFilters.BULAN === 'ALL' || r.BULAN === selectedFilters.BULAN) && matchOtherFilters(r))
         .map((r) => r.weekNumber || 39)
     )).sort((a, b) => b - a);
 
@@ -915,20 +1121,40 @@ export function calculateComparisonGrowth(
     currentPeriodLabel = `Minggu ${currentWeek}`;
     previousPeriodLabel = `Minggu ${previousWeek}`;
 
-    currentRecords = allRecords.filter((r) => r.TAHUN === activeYear && r.weekNumber === currentWeek);
-    previousRecords = allRecords.filter((r) => r.TAHUN === activeYear && r.weekNumber === previousWeek);
+    currentRecords = allRecords.filter((r) => r.TAHUN === activeYear && r.weekNumber === currentWeek && matchOtherFilters(r));
+    previousRecords = allRecords.filter((r) => r.TAHUN === activeYear && r.weekNumber === previousWeek && matchOtherFilters(r));
   } else if (mode === 'mom') {
-    // Month vs Month
-    let targetMonth = selectedFilters.BULAN !== 'ALL' ? selectedFilters.BULAN : 'SEPTEMBER';
-    const currentMonthIdx = MONTH_ORDER[targetMonth] || 9;
+    // Month vs Month (MoM)
+    let targetMonth = selectedFilters.BULAN && selectedFilters.BULAN !== 'ALL'
+      ? selectedFilters.BULAN.toUpperCase().trim()
+      : '';
+    let targetYear = activeYear;
+
+    if (!targetMonth || targetMonth === 'ALL') {
+      // Find latest month available in dataset for activeYear
+      const availableMonths = Array.from(new Set(
+        allRecords
+          .filter((r) => r.TAHUN === activeYear && r.BULAN && r.BULAN !== 'ALL')
+          .map((r) => r.BULAN.toUpperCase().trim())
+      )).sort((a, b) => (MONTH_ORDER[b] || 0) - (MONTH_ORDER[a] || 0));
+
+      targetMonth = availableMonths[0] || 'OKTOBER';
+    }
+
+    const currentMonthIdx = MONTH_ORDER[targetMonth] || 10;
     const prevMonthIdx = currentMonthIdx > 1 ? currentMonthIdx - 1 : 12;
     const prevMonthName = MONTH_NAMES_ID[prevMonthIdx - 1];
+    const prevYear = currentMonthIdx > 1 ? targetYear : targetYear - 1;
 
-    currentPeriodLabel = targetMonth;
-    previousPeriodLabel = prevMonthName;
+    currentPeriodLabel = `${targetMonth} ${targetYear}`;
+    previousPeriodLabel = `${prevMonthName} ${prevYear}`;
 
-    currentRecords = allRecords.filter((r) => r.TAHUN === activeYear && r.BULAN === targetMonth);
-    previousRecords = allRecords.filter((r) => r.TAHUN === activeYear && r.BULAN === prevMonthName);
+    currentRecords = allRecords.filter(
+      (r) => r.TAHUN === targetYear && (r.BULAN || '').toUpperCase().trim() === targetMonth && matchOtherFilters(r)
+    );
+    previousRecords = allRecords.filter(
+      (r) => r.TAHUN === prevYear && (r.BULAN || '').toUpperCase().trim() === prevMonthName && matchOtherFilters(r)
+    );
   } else {
     // Year vs Year (YoY)
     const currentYear = activeYear;
@@ -937,14 +1163,15 @@ export function calculateComparisonGrowth(
     currentPeriodLabel = `Tahun ${currentYear}`;
     previousPeriodLabel = `Tahun ${previousYear}`;
 
-    if (selectedFilters.BULAN !== 'ALL') {
-      currentPeriodLabel += ` (${selectedFilters.BULAN})`;
-      previousPeriodLabel += ` (${selectedFilters.BULAN})`;
-      currentRecords = allRecords.filter((r) => r.TAHUN === currentYear && r.BULAN === selectedFilters.BULAN);
-      previousRecords = allRecords.filter((r) => r.TAHUN === previousYear && r.BULAN === selectedFilters.BULAN);
+    if (selectedFilters.BULAN && selectedFilters.BULAN !== 'ALL') {
+      const bNorm = selectedFilters.BULAN.toUpperCase().trim();
+      currentPeriodLabel += ` (${bNorm})`;
+      previousPeriodLabel += ` (${bNorm})`;
+      currentRecords = allRecords.filter((r) => r.TAHUN === currentYear && (r.BULAN || '').toUpperCase().trim() === bNorm && matchOtherFilters(r));
+      previousRecords = allRecords.filter((r) => r.TAHUN === previousYear && (r.BULAN || '').toUpperCase().trim() === bNorm && matchOtherFilters(r));
     } else {
-      currentRecords = allRecords.filter((r) => r.TAHUN === currentYear);
-      previousRecords = allRecords.filter((r) => r.TAHUN === previousYear);
+      currentRecords = allRecords.filter((r) => r.TAHUN === currentYear && matchOtherFilters(r));
+      previousRecords = allRecords.filter((r) => r.TAHUN === previousYear && matchOtherFilters(r));
     }
   }
 
@@ -1021,6 +1248,8 @@ export function calculateComparisonGrowth(
       newVal: number;
       newQty: number;
       regular: number;
+      sellIn: number;
+      sellOut: number;
       focusSkus: Record<string, { sku: string; brand: string; value: number; qty: number }>;
       newSkus: Record<string, { sku: string; brand: string; value: number; qty: number }>;
     }
@@ -1033,6 +1262,8 @@ export function calculateComparisonGrowth(
       newVal: 0,
       newQty: 0,
       regular: 0,
+      sellIn: 0,
+      sellOut: 0,
       focusSkus: {},
       newSkus: {},
     });
@@ -1048,9 +1279,16 @@ export function calculateComparisonGrowth(
       const skuKey = r.SKU || r.SPU || r.NO_SKU || 'SKU';
       const isFocus = isFocusProduct(r.PRODUK_FOCUS);
       const isNew = isNewProduct(r.PRODUK_NEW);
+      const rawKet = (r.KET || '').toUpperCase().trim();
+      const isSellInRow = rawKet === 'SELL IN' || rawKet.includes('SELL IN');
 
       curMap[k].total += val;
       curMap[k].qty += qty;
+      if (isSellInRow) {
+        curMap[k].sellIn += val;
+      } else {
+        curMap[k].sellOut += val;
+      }
 
       if (isFocus) {
         curMap[k].focus += val;
@@ -1084,9 +1322,16 @@ export function calculateComparisonGrowth(
       const qty = r.QTY || 0;
       const isFocus = isFocusProduct(r.PRODUK_FOCUS);
       const isNew = isNewProduct(r.PRODUK_NEW);
+      const rawKet = (r.KET || '').toUpperCase().trim();
+      const isSellInRow = rawKet === 'SELL IN' || rawKet.includes('SELL IN');
 
       prevMap[k].total += val;
       prevMap[k].qty += qty;
+      if (isSellInRow) {
+        prevMap[k].sellIn += val;
+      } else {
+        prevMap[k].sellOut += val;
+      }
 
       if (isFocus) {
         prevMap[k].focus += val;
@@ -1172,6 +1417,15 @@ export function calculateComparisonGrowth(
         currentRegular: cur.regular,
         previousRegular: prev.regular,
 
+        currentSellIn: cur.sellIn,
+        currentSellOut: cur.sellOut,
+        previousSellIn: prev.sellIn,
+        previousSellOut: prev.sellOut,
+        ket: (cur.sellIn > 0 && cur.sellOut > 0 ? 'SELL IN & OUT' : cur.sellIn > 0 ? 'SELL IN' : 'SELL OUT') as
+          | 'SELL IN'
+          | 'SELL OUT'
+          | 'SELL IN & OUT',
+
         topFocusSkus,
         topNewSkus,
       };
@@ -1207,7 +1461,7 @@ export function calculateComparisonGrowth(
     const curMap: Record<string, EntityAgg> = {};
     const prevMap: Record<string, EntityAgg> = {};
 
-    const allTrainers = ['Siti Rahmawati', 'Dewi Lestari', 'Nurul Aini', 'Farah Diba'];
+    const allTrainers = ['ARA', 'RATIH'];
     allTrainers.forEach((t) => {
       curMap[t] = initAgg();
       prevMap[t] = initAgg();
@@ -1360,26 +1614,74 @@ export function calculateComparisonGrowth(
 }
 
 export function getTrainerForRecord(r: TransactionRecord): string {
-  const area = (r.COVER_AREA || '').toUpperCase();
-  const reg = (r.REGION || '').toUpperCase();
   const sales = (r.SALES || '').toUpperCase();
   const store = (r.NAMA_STORE || '').toUpperCase();
+  const area = (r.COVER_AREA || '').toUpperCase();
+  const reg = (r.REGION || '').toUpperCase();
 
-  if (reg.includes('PEKAN') || area.includes('AREA BARU') || sales.includes('ILHAMSYAH')) {
-    return 'Siti Rahmawati';
+  // 1. Sales-based coveran
+  if (sales.includes('ALBERT FERNANDO')) return 'ARA';
+  if (sales.includes('ABDUL RAHIM')) return 'RATIH';
+
+  // 2. Specific store matching from master image table
+  // Stores strictly assigned to ARA
+  if (
+    store.includes('CITRA SWALAYAN') ||
+    store.includes('HIDAYAH') ||
+    store.includes('IDOLA KOSMETIK') ||
+    store.includes('JINAAN') ||
+    store.includes('KARTINSHOP') ||
+    store.includes('MY KOSMETIK') ||
+    store.includes('BEAUTY STORE (BANGKINANG)') ||
+    store.includes('CERIA KOSMETIK') ||
+    store.includes('KHARISMA') ||
+    store.includes('MALAYA MART') ||
+    store.includes('BENING') ||
+    store.includes('PEKANBARU_ORIGINAL') ||
+    store.includes('GUARDIAN') ||
+    store.includes('WATSON') ||
+    store.includes('PANAM') ||
+    store.includes('TEMBILAHAN')
+  ) {
+    return 'ARA';
   }
-  if (reg.includes('DURI') || area.includes('LUAR KOTA') || sales.includes('LUAR KOTA')) {
-    return 'Dewi Lestari';
+
+  // Stores strictly assigned to RATIH
+  if (
+    store.includes('ANNISA') ||
+    store.includes('GHANAYA') ||
+    store.includes('GLOBAL KOSMETIK') ||
+    store.includes('MM SANIA') ||
+    store.includes('SABRINA') ||
+    store.includes('BLINK') ||
+    store.includes('DUMAI BARU') ||
+    store.includes('AKAR SARI') ||
+    store.includes('AL KAUTSAR') ||
+    store.includes('CS BEAUTEE') ||
+    store.includes('RATU PALUGADA') ||
+    store.includes('RINI JOFA') ||
+    store.includes('SARASA') ||
+    store.includes('ALANA') ||
+    store.includes('UNIGLOW') ||
+    store.includes('CAN BEAUTY') ||
+    store.includes('FOR SKIN') ||
+    store.includes('I.C.A') ||
+    store.includes('LUCY') ||
+    store.includes('RAMBE') ||
+    store.includes('RAYA KOSMETIK') ||
+    store.includes('WARKOS') ||
+    store.includes('DELIMA') ||
+    store.includes('MARPOYAN')
+  ) {
+    return 'RATIH';
   }
-  if (reg.includes('DUMAI') || area.includes('DUMAI') || area.includes('BAGAN')) {
-    return 'Nurul Aini';
+
+  // 3. Fallback based on region / area
+  if (reg.includes('DURI') || reg.includes('BAGAN') || area.includes('DURI') || area.includes('BAGAN')) {
+    return 'RATIH';
   }
-  if (reg.includes('RIAU') || area.includes('SELAT') || area.includes('BENGKALIS') || store.includes('SELAT')) {
-    return 'Farah Diba';
-  }
-  const hash = ((store.charCodeAt(0) || 0) + (store.charCodeAt(store.length - 1) || 0)) % 4;
-  const trainers = ['Siti Rahmawati', 'Dewi Lestari', 'Nurul Aini', 'Farah Diba'];
-  return trainers[hash];
+
+  return 'ARA';
 }
 
 // Gap & Root Cause Diagnosis: Why did sales drop?
@@ -1397,23 +1699,35 @@ export function diagnoseSalesGap(
   let currentSubset: TransactionRecord[] = [];
   let previousSubset: TransactionRecord[] = [];
 
-  if (filters.BULAN !== 'ALL') {
-    currentPeriodName = filters.BULAN;
-    const currentIdx = MONTH_ORDER[filters.BULAN] || 9;
+  if (filters.BULAN && filters.BULAN !== 'ALL') {
+    currentPeriodName = filters.BULAN.toUpperCase().trim();
+    const currentIdx = MONTH_ORDER[currentPeriodName] || 10;
     const prevIdx = currentIdx > 1 ? currentIdx - 1 : 12;
     previousPeriodName = MONTH_NAMES_ID[prevIdx - 1];
 
-    currentSubset = allRecords.filter((r) => r.TAHUN === activeYear && r.BULAN === currentPeriodName);
-    previousSubset = allRecords.filter((r) => r.TAHUN === activeYear && r.BULAN === previousPeriodName);
+    currentSubset = allRecords.filter((r) => r.TAHUN === activeYear && (r.BULAN || '').toUpperCase().trim() === currentPeriodName);
+    previousSubset = allRecords.filter((r) => r.TAHUN === activeYear && (r.BULAN || '').toUpperCase().trim() === previousPeriodName);
   } else {
-    currentPeriodName = 'SEPTEMBER 2026';
-    previousPeriodName = 'AGUSTUS 2026';
-    currentSubset = allRecords.filter((r) => r.TAHUN === 2026 && r.BULAN === 'SEPTEMBER');
-    previousSubset = allRecords.filter((r) => r.TAHUN === 2026 && r.BULAN === 'AGUSTUS');
+    // Dynamic resolution: pick the latest month in dataset (e.g. OKTOBER) and its predecessor (SEPTEMBER)
+    const availableMonths = Array.from(new Set(
+      allRecords
+        .filter((r) => r.TAHUN === activeYear && r.BULAN && r.BULAN !== 'ALL')
+        .map((r) => r.BULAN.toUpperCase().trim())
+    )).sort((a, b) => (MONTH_ORDER[b] || 0) - (MONTH_ORDER[a] || 0));
+
+    const latestMonth = availableMonths[0] || 'OKTOBER';
+    const latestMonthIdx = MONTH_ORDER[latestMonth] || 10;
+    const prevIdx = latestMonthIdx > 1 ? latestMonthIdx - 1 : 12;
+    const prevMonth = MONTH_NAMES_ID[prevIdx - 1];
+
+    currentPeriodName = `${latestMonth} ${activeYear}`;
+    previousPeriodName = `${prevMonth} ${activeYear}`;
+    currentSubset = allRecords.filter((r) => r.TAHUN === activeYear && (r.BULAN || '').toUpperCase().trim() === latestMonth);
+    previousSubset = allRecords.filter((r) => r.TAHUN === activeYear && (r.BULAN || '').toUpperCase().trim() === prevMonth);
 
     if (currentSubset.length === 0) {
       currentSubset = dataset;
-      previousSubset = allRecords.filter((r) => r.TAHUN === 2025);
+      previousSubset = allRecords.filter((r) => r.TAHUN === (activeYear - 1));
       currentPeriodName = 'Periode Aktif';
       previousPeriodName = 'Baseline Tahun Lalu';
     }

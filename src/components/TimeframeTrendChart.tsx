@@ -17,12 +17,18 @@ interface TimeframeTrendChartProps {
   data: TrendItem[];
   mode: TimeframeMode;
   onModeChange: (mode: TimeframeMode) => void;
+  selectedMonth?: string;
+  kaSellInValue?: number;
+  dazzleMeMgSellInValue?: number;
 }
 
 export const TimeframeTrendChart: React.FC<TimeframeTrendChartProps> = ({
   data,
   mode,
   onModeChange,
+  selectedMonth,
+  kaSellInValue = 0,
+  dazzleMeMgSellInValue = 0,
 }) => {
   const [metricType, setMetricType] = useState<'value' | 'qty'>('value');
   const [isForecastEnabled, setIsForecastEnabled] = useState<boolean>(false);
@@ -69,14 +75,50 @@ export const TimeframeTrendChart: React.FC<TimeframeTrendChartProps> = ({
     });
   }, [displayItems, metricType]);
 
-  // Overall timeframe growth momentum summary
+  // Overall timeframe growth momentum summary with dynamic selectedMonth MoM support
   const timeframeGrowthSummary = useMemo(() => {
+    // 1. Dukungan Khusus: Jika filter bulan ditekan (misal OKTOBER)
+    if (mode === 'bulanan' && selectedMonth && selectedMonth !== 'ALL') {
+      const normMonth = selectedMonth.toUpperCase().trim();
+      const targetIdx = data.findIndex(
+        (d) =>
+          d.subLabel.toUpperCase() === normMonth ||
+          d.label.toUpperCase() === normMonth.slice(0, 3) ||
+          d.subLabel.toUpperCase().includes(normMonth)
+      );
+
+      if (targetIdx !== -1) {
+        const currentItem = data[targetIdx];
+        const prevItem = targetIdx > 0 ? data[targetIdx - 1] : null;
+        const curVal = metricType === 'value' ? currentItem.value : currentItem.qty;
+        const prevVal = prevItem ? (metricType === 'value' ? prevItem.value : prevItem.qty) : 0;
+        const totalDelta = curVal - prevVal;
+        const totalGrowthPct = prevVal > 0 ? (totalDelta / prevVal) * 100 : (curVal > 0 ? 100 : 0);
+
+        return {
+          totalGrowthPct,
+          totalDelta,
+          avgGrowthPct: totalGrowthPct,
+          bestPeriod: {
+            label: currentItem.label,
+            pct: totalGrowthPct,
+          },
+          targetMonthLabel: currentItem.subLabel,
+          prevMonthLabel: prevItem ? prevItem.subLabel : 'Bulan Sebelumnya',
+          curVal,
+          prevVal,
+          isSpecificMonth: true,
+        };
+      }
+    }
+
     if (data.length < 2) {
       return {
         totalGrowthPct: 0,
         totalDelta: 0,
         avgGrowthPct: 0,
         bestPeriod: null,
+        isSpecificMonth: false,
       };
     }
     const firstVal = metricType === 'value' ? data[0].value : data[0].qty;
@@ -108,8 +150,9 @@ export const TimeframeTrendChart: React.FC<TimeframeTrendChartProps> = ({
       totalDelta,
       avgGrowthPct: countGrowth > 0 ? sumGrowthPct / countGrowth : 0,
       bestPeriod: bestPeriodLabel ? { label: bestPeriodLabel, pct: highestGrowth } : null,
+      isSpecificMonth: false,
     };
-  }, [data, metricType]);
+  }, [data, metricType, mode, selectedMonth]);
 
   const values = displayItems.map((d) => (metricType === 'value' ? d.value : d.qty));
   const maxValue = Math.max(...values, 1);
@@ -249,17 +292,27 @@ export const TimeframeTrendChart: React.FC<TimeframeTrendChartProps> = ({
       </div>
 
       {/* Growth Momentum Strip */}
-      <div className="p-3 rounded-xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-cyan-50/70 border border-emerald-200/90 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <div className="p-1 rounded-md bg-emerald-600 text-white shrink-0">
-            <TrendingUp className="w-3.5 h-3.5" />
+      <div className="p-3.5 rounded-xl bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-cyan-50/70 border border-emerald-200/90 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0 shadow-xs">
+            <TrendingUp className="w-4 h-4" />
           </div>
           <div>
-            <span className="font-extrabold text-emerald-950 block">
-              Indikator Growth ({timeframes.find((t) => t.id === mode)?.label}):
-            </span>
-            <span className="text-slate-600 text-[11px]">
-              Pertumbuhan periode awal ke akhir:{' '}
+            <div className="flex items-center gap-2">
+              <span className="font-extrabold text-emerald-950 text-xs">
+                Indikator Growth ({timeframes.find((t) => t.id === mode)?.label}
+                {timeframeGrowthSummary.isSpecificMonth ? ` - ${timeframeGrowthSummary.targetMonthLabel}` : ''}):
+              </span>
+              {timeframeGrowthSummary.isSpecificMonth && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-200 text-emerald-900 border border-emerald-300">
+                  Aktif Filter: {timeframeGrowthSummary.targetMonthLabel}
+                </span>
+              )}
+            </div>
+            <span className="text-slate-600 text-[11px] block mt-0.5">
+              {timeframeGrowthSummary.isSpecificMonth
+                ? `Pertumbuhan MoM (${timeframeGrowthSummary.targetMonthLabel} vs ${timeframeGrowthSummary.prevMonthLabel}): `
+                : 'Pertumbuhan periode awal ke akhir: '}
               <strong className={timeframeGrowthSummary.totalDelta >= 0 ? 'text-emerald-800' : 'text-rose-800'}>
                 {timeframeGrowthSummary.totalDelta >= 0 ? '▲ +' : '▼ '}
                 {timeframeGrowthSummary.totalGrowthPct.toFixed(1)}% (
@@ -273,11 +326,21 @@ export const TimeframeTrendChart: React.FC<TimeframeTrendChartProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+          {kaSellInValue > 0 && (
+            <span className="px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-200 text-purple-900 font-bold shadow-2xs">
+              Sell In KA: {formatRupiah(kaSellInValue, true)}
+            </span>
+          )}
+          {dazzleMeMgSellInValue > 0 && (
+            <span className="px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200 text-teal-900 font-bold shadow-2xs">
+              Sell In DAZZLE ME MG: {formatRupiah(dazzleMeMgSellInValue, true)}
+            </span>
+          )}
           <span className="px-2.5 py-1 rounded-lg bg-white border border-emerald-200 text-emerald-900 font-bold shadow-2xs">
             Laju Rata-rata: {timeframeGrowthSummary.avgGrowthPct >= 0 ? '+' : ''}
             {timeframeGrowthSummary.avgGrowthPct.toFixed(1)}% / {mode === 'mingguan' ? 'minggu' : mode === 'bulanan' ? 'bulan' : 'periode'}
           </span>
-          {timeframeGrowthSummary.bestPeriod && (
+          {timeframeGrowthSummary.bestPeriod && !timeframeGrowthSummary.isSpecificMonth && (
             <span className="px-2.5 py-1 rounded-lg bg-white border border-teal-200 text-teal-900 font-bold shadow-2xs">
               Lompatan Tertinggi: {timeframeGrowthSummary.bestPeriod.label} (▲ +{timeframeGrowthSummary.bestPeriod.pct.toFixed(1)}%)
             </span>

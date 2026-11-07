@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText,
   AlertCircle,
@@ -20,9 +20,17 @@ import {
   X,
   Sparkles,
 } from 'lucide-react';
-import { StoreInvoiceBillItem, StoreViolationSummary, SalesSpvDendaSummary, DashboardFilters, AgingCategory } from '../types/dashboard';
+import {
+  StoreInvoiceBillItem,
+  StoreViolationSummary,
+  SalesSpvDendaSummary,
+  DashboardFilters,
+  AgingCategory,
+  TransactionRecord,
+} from '../types/dashboard';
 import {
   loadStoreBills,
+  loadStoreBillsWithRecords,
   saveStoreBills,
   calculateStoreViolations,
   calculateSalesSpvDenda,
@@ -32,11 +40,20 @@ import { formatRupiah, formatNumber } from '../utils/analytics';
 import * as XLSX from 'xlsx';
 
 interface StoreAgingBillsProps {
+  records?: TransactionRecord[];
   filters: DashboardFilters;
 }
 
-export const StoreAgingBills: React.FC<StoreAgingBillsProps> = ({ filters }) => {
-  const [bills, setBills] = useState<StoreInvoiceBillItem[]>(() => loadStoreBills());
+export const StoreAgingBills: React.FC<StoreAgingBillsProps> = ({ records = [], filters }) => {
+  const [bills, setBills] = useState<StoreInvoiceBillItem[]>(() => loadStoreBillsWithRecords(records));
+
+  // Sync automatically when records update from connected Google Sheet
+  useEffect(() => {
+    if (records && records.length > 0) {
+      setBills(loadStoreBillsWithRecords(records));
+    }
+  }, [records]);
+
   const [activeSubTab, setActiveSubTab] = useState<'invoices' | 'violations' | 'denda'>('invoices');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'unpaid' | 'paid'>('all');
@@ -781,7 +798,7 @@ export const StoreAgingBills: React.FC<StoreAgingBillsProps> = ({ filters }) => 
                   <th className="py-3 px-3">Tgl Sell In</th>
                   <th className="py-3 px-3">Jatuh Tempo</th>
                   <th className="py-3 px-3 text-center">Hari Aging</th>
-                  <th className="py-3 px-3 text-right">Nominal Tagihan</th>
+                  <th className="py-3 px-3 text-right">Nominal Tagihan (SELL IN)</th>
                   <th className="py-3 px-3 text-center">Tindakan &amp; Eskalasi</th>
                   <th className="py-3 px-3 text-center">Status Lunas</th>
                   <th className="py-3 px-3 text-center">Tanggal Bayar</th>

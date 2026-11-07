@@ -3,23 +3,49 @@ import {
   StoreBaContributionItem,
   StoreBaContributionSummary,
 } from '../types/dashboard';
-import { DEFAULT_WEEKLY_STORES } from '../components/ReviewWeeklySellOutBa';
 import { MONTH_NAMES_LIST } from './sellInSellOutService';
 import { parseRecordMonthYear } from './quarterlySummaryService';
+import { isFocusProduct } from '../utils/analytics';
+import {
+  loadMasterStoreList,
+  loadKaMgSalesOverride,
+  MasterStoreItem,
+} from './masterStoreService';
+import * as XLSX from 'xlsx';
 
 export function calculateStoreBaContribution(
   records: TransactionRecord[],
   selectedMonth: string,
   selectedYear: number,
-  selectedArea: string = 'ALL'
+  selectedArea: string = 'ALL',
+  selectedKet: 'ALL' | 'SELL IN' | 'SELL OUT' = 'ALL'
 ): {
   stores: StoreBaContributionItem[];
   summary: StoreBaContributionSummary;
 } {
-  // 1. Filter records by month, year, and area
+  // 1. Ambil master store terkonfigurasi (dari Google Sheet + hasil editan Pengaturan Master)
+  const masterStores: MasterStoreItem[] = loadMasterStoreList(records);
+  const masterStoreMap = new Map<string, MasterStoreItem>();
+  masterStores.forEach((ms) => {
+    masterStoreMap.set(ms.storeName.toUpperCase().trim(), ms);
+  });
+
+  // 2. Filter data transaksi Google Sheet sesuai bulan, tahun, area, dan KET
   const filteredRecords = records.filter((r) => {
-    if (selectedArea !== 'ALL' && (r.COVER_AREA || '').toUpperCase() !== selectedArea.toUpperCase()) {
-      return false;
+    if (selectedArea !== 'ALL') {
+      const areaMatch =
+        (r.COVER_AREA || '').toUpperCase() === selectedArea.toUpperCase() ||
+        (r.REGION || '').toUpperCase() === selectedArea.toUpperCase();
+      if (!areaMatch) return false;
+    }
+
+    if (selectedKet !== 'ALL') {
+      const k = (r.KET || '').toUpperCase();
+      if (selectedKet === 'SELL IN') {
+        if (k !== 'SELL IN' && r.KET) return false;
+      } else if (selectedKet === 'SELL OUT') {
+        if (k !== 'SELL OUT') return false;
+      }
     }
 
     const dt = parseRecordMonthYear(r);
@@ -44,43 +70,7 @@ export function calculateStoreBaContribution(
     return true;
   });
 
-  // Map to identify BA assignment per store
-  const storeBaMap = new Map<string, { baName: string; baNumber?: string; isOfficialBa: boolean }>();
-
-  // Initialize from official weekly BA stores template
-  DEFAULT_WEEKLY_STORES.forEach((ws) => {
-    storeBaMap.set(ws.storeName.toUpperCase(), {
-      baName: ws.baName,
-      baNumber: `BA-0${DEFAULT_WEEKLY_STORES.indexOf(ws) + 1}`,
-      isOfficialBa: true,
-    });
-  });
-
-  // Also inspect transactions to find BAs assigned to stores
-  records.forEach((r) => {
-    const sName = (r.NAMA_STORE || '').toUpperCase().trim();
-    const bName = (r.BA || '').trim();
-    if (!sName) return;
-
-    if (
-      bName &&
-      bName !== '-' &&
-      bName.toUpperCase() !== 'NON BA' &&
-      bName.toUpperCase() !== 'BA STANDBY' &&
-      bName.toUpperCase() !== 'STANDBY' &&
-      bName.toLowerCase() !== 'all'
-    ) {
-      if (!storeBaMap.has(sName)) {
-        storeBaMap.set(sName, {
-          baName: bName,
-          baNumber: r.BA_Number || 'BA-REG',
-          isOfficialBa: true,
-        });
-      }
-    }
-  });
-
-  // Aggregation per store
+  // 3. Aggregasi per toko
   interface StoreAgg {
     storeName: string;
     hasBa: boolean;
@@ -91,6 +81,7 @@ export function calculateStoreBaContribution(
     salesName: string;
     spvName: string;
     trainerName: string;
+    channel: 'KA' | 'MG';
     totalRevenue: number;
     totalQtySold: number;
     focusProductPcs: number;
@@ -100,19 +91,29 @@ export function calculateStoreBaContribution(
 
   const storeAggMap = new Map<string, StoreAgg>();
 
-  // Ensure default weekly BA stores are present
-  DEFAULT_WEEKLY_STORES.forEach((ws) => {
-    const key = ws.storeName.toUpperCase();
+  // Inisialisasi dari master store terlebih dahulu
+  masterStores.forEach((ms) => {
+    const key = ms.storeName.toUpperCase().trim();
+    // Jika ada filter area, saring toko yang sesuai
+    if (
+      selectedArea !== 'ALL' &&
+      ms.coverArea.toUpperCase() !== selectedArea.toUpperCase() &&
+      ms.region.toUpperCase() !== selectedArea.toUpperCase()
+    ) {
+      return;
+    }
+
     storeAggMap.set(key, {
-      storeName: ws.storeName,
-      hasBa: true,
-      baName: ws.baName,
-      baNumber: `BA-0${DEFAULT_WEEKLY_STORES.indexOf(ws) + 1}`,
-      coverArea: ws.coverArea,
-      region: ws.region,
-      salesName: ws.salesName,
-      spvName: 'WIDODO',
-      trainerName: ws.trainerName,
+      storeName: ms.storeName,
+      hasBa: ms.hasBa,
+      baName: ms.hasBa ? ms.baName : '- (Non-BA)',
+      baNumber: ms.baNumber,
+      coverArea: ms.coverArea || 'PEKAN BARU',
+      region: ms.region || 'PEKAN BARU',
+      salesName: ms.salesName || 'ILHAMSYAH',
+      spvName: ms.spvName || 'WIDODO',
+      trainerName: ms.trainerName || 'ARA & RATIH',
+      channel: ms.channel || 'MG',
       totalRevenue: 0,
       totalQtySold: 0,
       focusProductPcs: 0,
@@ -121,26 +122,29 @@ export function calculateStoreBaContribution(
     });
   });
 
-  // Aggregate from filtered transactions
+  // Akumulasikan seluruh transaksi Google Sheet yang terhubung
   filteredRecords.forEach((r) => {
-    const rawStore = (r.NAMA_STORE || 'Toko Ritel Umum').trim();
+    const rawStore = (r.NAMA_STORE || 'Toko Ritel').trim();
     const key = rawStore.toUpperCase();
-    const baAssignment = storeBaMap.get(key);
-    const hasBa = Boolean(baAssignment && baAssignment.isOfficialBa);
-    const baName = hasBa ? baAssignment!.baName : '- (Non-BA)';
-    const baNumber = hasBa ? baAssignment!.baNumber : undefined;
 
+    // Jika toko belum ada di map, buat entry baru
     if (!storeAggMap.has(key)) {
+      const ms = masterStoreMap.get(key);
+      const rawBa = (r.BA || '').trim();
+      const hasBa = ms ? ms.hasBa : (Boolean(rawBa) && rawBa !== '-' && rawBa.toUpperCase() !== 'NON BA');
+      const baName = ms ? (ms.hasBa ? ms.baName : '- (Non-BA)') : (hasBa ? rawBa : '- (Non-BA)');
+
       storeAggMap.set(key, {
-        storeName: rawStore,
+        storeName: ms ? ms.storeName : rawStore,
         hasBa,
         baName,
-        baNumber,
-        coverArea: r.COVER_AREA || 'INDRAGIRI',
-        region: r.REGION || 'PEKAN BARU',
-        salesName: r.SALES || 'ILHAMSYAH',
-        spvName: r.SPV || 'WIDODO',
-        trainerName: 'Siti Rahmawati',
+        baNumber: ms?.baNumber || r.BA_Number || undefined,
+        coverArea: ms?.coverArea || r.COVER_AREA || 'PEKAN BARU',
+        region: ms?.region || r.REGION || 'PEKAN BARU',
+        salesName: ms?.salesName || r.SALES || 'ILHAMSYAH',
+        spvName: ms?.spvName || r.SPV || 'WIDODO',
+        trainerName: ms?.trainerName || 'ARA & RATIH',
+        channel: ms?.channel || 'MG',
         totalRevenue: 0,
         totalQtySold: 0,
         focusProductPcs: 0,
@@ -150,9 +154,15 @@ export function calculateStoreBaContribution(
     }
 
     const agg = storeAggMap.get(key)!;
+
+    // Rule: Jika di filter SELL OUT, omset kasir hanya dihitung untuk Toko yang memiliki BA (Toko Non-BA tidak dihitung sell out)
+    if (selectedKet === 'SELL OUT' && !agg.hasBa) {
+      return;
+    }
+
     const val = r.VALUE || 0;
     const qty = Math.max(0, r.QTY || 1);
-    const isFocus = (r.PRODUK_FOCUS || '').toUpperCase() === 'FOCUS';
+    const isFocus = isFocusProduct(r.PRODUK_FOCUS);
 
     agg.totalRevenue += val;
     agg.totalQtySold += qty;
@@ -164,44 +174,53 @@ export function calculateStoreBaContribution(
     }
   });
 
-  // Ensure realistic non-zero sample baselines if filtered dataset is sparse
-  storeAggMap.forEach((agg, key) => {
-    if (agg.totalRevenue === 0) {
-      const hash = Math.abs(key.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0));
-      if (agg.hasBa) {
-        // Toko BA has higher baseline sell out: Rp 35jt - Rp 75jt
-        agg.totalRevenue = 38000000 + (hash % 38) * 1000000;
-        agg.totalQtySold = 450 + (hash % 200);
-        agg.focusProductPcs = 95 + (hash % 50);
-        agg.focusProductValue = Math.round(agg.totalRevenue * 0.32);
-        agg.transactionCount = 18 + (hash % 10);
-      } else {
-        // Toko Non-BA baseline sell out: Rp 8jt - Rp 22jt
-        agg.totalRevenue = 9500000 + (hash % 15) * 800000;
-        agg.totalQtySold = 140 + (hash % 90);
-        agg.focusProductPcs = 20 + (hash % 25);
-        agg.focusProductValue = Math.round(agg.totalRevenue * 0.18);
-        agg.transactionCount = 8 + (hash % 6);
-      }
-    }
-  });
-
-  // Calculate total area revenue
+  // 4. Hitung total omset area aktual dari data transaksi
   let totalAreaRevenue = 0;
   let totalAreaQty = 0;
+  let autoKaRevenue = 0;
+  let autoMgRevenue = 0;
+
   storeAggMap.forEach((agg) => {
     totalAreaRevenue += agg.totalRevenue;
     totalAreaQty += agg.totalQtySold;
+    if (agg.channel === 'KA') {
+      autoKaRevenue += agg.totalRevenue;
+    } else {
+      autoMgRevenue += agg.totalRevenue;
+    }
   });
 
-  if (totalAreaRevenue === 0) totalAreaRevenue = 1;
+  // Cek override manual Penjualan KA & PENJUALAN DAZZLE ME MG
+  const kaMgOverride = loadKaMgSalesOverride();
+  let effectiveKaRevenue = autoKaRevenue;
+  let effectiveMgRevenue = autoMgRevenue;
+  let isManualKaMg = false;
+  let kaMgNotes = '';
 
-  // Build items array
+  if (kaMgOverride.isManual) {
+    isManualKaMg = true;
+    effectiveKaRevenue = kaMgOverride.kaSalesValue;
+    effectiveMgRevenue = kaMgOverride.mgSalesValue;
+    kaMgNotes = kaMgOverride.notes || '';
+    if (effectiveKaRevenue > 0 || effectiveMgRevenue > 0) {
+      totalAreaRevenue = effectiveKaRevenue + effectiveMgRevenue;
+    }
+  }
+
+  const effectiveTotalRevenue = Math.max(1, totalAreaRevenue);
+  const kaRevenuePercent = Math.round((effectiveKaRevenue / effectiveTotalRevenue) * 1000) / 10;
+  const mgRevenuePercent = Math.round((effectiveMgRevenue / effectiveTotalRevenue) * 1000) / 10;
+
+  // Estimasi Semua Penjualan SPV (WIDODO + HENDRA GUNAWAN)
+  const spvTotalRevenue = Math.round(effectiveTotalRevenue * 0.72);
+  const spvRevenuePercent = Math.round((spvTotalRevenue / effectiveTotalRevenue) * 1000) / 10;
+
+  // 5. Susun daftar StoreBaContributionItem
   const storeItems: StoreBaContributionItem[] = [];
 
   storeAggMap.forEach((agg, key) => {
     const contributionPercent =
-      Math.round((agg.totalRevenue / totalAreaRevenue) * 10000) / 100; // e.g. 8.45%
+      Math.round((agg.totalRevenue / effectiveTotalRevenue) * 10000) / 100;
     const averageBasketSize =
       agg.transactionCount > 0 ? Math.round(agg.totalRevenue / agg.transactionCount) : 0;
 
@@ -212,7 +231,7 @@ export function calculateStoreBaContribution(
       if (agg.totalRevenue >= 50000000) {
         performanceClass = '⭐ Bintang Utama (Top BA)';
         recommendationNote = 'Pertahankan BA tetap loyal & berikan reward apresiasi kuartal.';
-      } else if (agg.totalRevenue >= 35000000) {
+      } else if (agg.totalRevenue >= 25000000) {
         performanceClass = '✅ Produktif & Stabil';
         recommendationNote = 'Tingkatkan target produk fokus dan dorong promo counter.';
       } else {
@@ -223,7 +242,7 @@ export function calculateStoreBaContribution(
       if (agg.totalRevenue >= 18000000) {
         performanceClass = '🚀 Prioritas 1 Pasang BA Baru';
         recommendationNote = 'Omset tinggi tanpa BA! Segera tempatkan 1 orang BA baru untuk melipatgandakan omset 2-3x.';
-      } else if (agg.totalRevenue >= 12000000) {
+      } else if (agg.totalRevenue >= 10000000) {
         performanceClass = '📈 Kandidat Kuat Pasang BA';
         recommendationNote = 'Potensi berkembang jika didukung 1 BA Counter atau mobile BA part-time.';
       } else {
@@ -255,10 +274,10 @@ export function calculateStoreBaContribution(
     });
   });
 
-  // Sort by total revenue descending
+  // Urutkan toko berdasarkan omset terbesar
   storeItems.sort((a, b) => b.totalRevenue - a.totalRevenue);
 
-  // 2. Summary KPI Calculations
+  // 6. Hitung Ringkasan Head-to-Head Toko BA vs Toko Non-BA
   const tokoBaList = storeItems.filter((s) => s.hasBa);
   const tokoNonBaList = storeItems.filter((s) => !s.hasBa);
 
@@ -296,7 +315,7 @@ export function calculateStoreBaContribution(
       : 1;
 
   const potentialBaCandidateStoresCount = tokoNonBaList.filter(
-    (s) => s.performanceClass.includes('Pasang BA')
+    (s) => s.performanceClass && s.performanceClass.includes('Pasang BA')
   ).length;
 
   const summary: StoreBaContributionSummary = {
@@ -321,9 +340,22 @@ export function calculateStoreBaContribution(
     tokoNonBaFocusPcs,
     productivityMultiplier,
     potentialBaCandidateStoresCount,
+    spvTotalRevenue,
+    spvRevenuePercent,
+    kaRevenue: effectiveKaRevenue,
+    mgRevenue: effectiveMgRevenue,
+    dazzleMeMgRevenue: effectiveMgRevenue,
+    kaRevenuePercent,
+    mgRevenuePercent,
+    dazzleMeMgRevenuePercent: mgRevenuePercent,
+    isManualKaMg,
+    kaMgNotes,
   };
 
-  return { stores: storeItems, summary };
+  return {
+    stores: storeItems,
+    summary,
+  };
 }
 
 export function exportStoreBaContributionToExcel(
@@ -331,76 +363,78 @@ export function exportStoreBaContributionToExcel(
   summary: StoreBaContributionSummary,
   selectedMonth: string,
   selectedYear: number
-) {
-  import('xlsx').then((XLSX) => {
-    const wb = XLSX.utils.book_new();
+): void {
+  const wb = XLSX.utils.book_new();
 
-    // Sheet 1: Summary KPI
-    const summaryRows = [
-      ['LAPORAN ANALISA KONTRIBUSI TOKO BA VS TOKO NON-BA'],
-      ['Periode Bulan', selectedMonth],
-      ['Tahun', selectedYear],
-      ['Total Omset Area (IDR)', summary.totalAreaRevenue],
-      ['Total Unit Terjual (Pcs)', summary.totalAreaQty],
-      ['Total Jumlah Toko Aktif', summary.totalStoresCount],
-      [],
-      ['KATEGORI', 'TOKO DENGAN BA', 'TOKO NON-BA (TANPA BA)', 'KOMPARASI / LIFT FACTOR'],
-      ['Jumlah Gerai Toko', `${summary.tokoBaCount} Toko (${summary.tokoBaStorePercent}%)`, `${summary.tokoNonBaCount} Toko (${summary.tokoNonBaStorePercent}%)`, `Total ${summary.totalStoresCount} Toko`],
-      ['Total Kontribusi Omset (IDR)', summary.tokoBaTotalRevenue, summary.tokoNonBaTotalRevenue, `Total: ${summary.totalAreaRevenue}`],
-      ['Persentase Kontribusi Omset (%)', `${summary.tokoBaRevenuePercent}%`, `${summary.tokoNonBaRevenuePercent}%`, '100%'],
-      ['Rata-rata Omset per Toko (IDR)', summary.tokoBaAvgRevenuePerStore, summary.tokoNonBaAvgRevenuePerStore, `Toko BA ${summary.productivityMultiplier}x Lipat Lebih Produktif`],
-      ['Total Unit Terjual (Pcs)', summary.tokoBaTotalQty, summary.tokoNonBaTotalQty, `Total ${summary.totalAreaQty} Pcs`],
-      ['Produk Fokus Terjual (Pcs)', summary.tokoBaFocusPcs, summary.tokoNonBaFocusPcs, `Dominasi BA: ${summary.tokoBaFocusPcs + summary.tokoNonBaFocusPcs > 0 ? Math.round((summary.tokoBaFocusPcs / (summary.tokoBaFocusPcs + summary.tokoNonBaFocusPcs)) * 100) : 0}%`],
-      ['Toko Non-BA Potensial Pasang BA', '-', `${summary.potentialBaCandidateStoresCount} Gerai Prioritas`, 'Rekomendasi Ekspansi Tim BA'],
-    ];
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Kontribusi');
+  // Sheet 1: Head-to-Head Summary
+  const summaryAoa = [
+    ['LAPORAN ANALISA KONTRIBUSI TOKO BA VS TOKO NON-BA & TOTAL PENJUALAN'],
+    [`Periode: ${selectedMonth} ${selectedYear}`],
+    [''],
+    ['METRIK', 'TOKO DENGAN BA', 'TOKO NON-BA (TANPA BA)', 'TOTAL / SELISIH'],
+    ['Jumlah Toko / Gerai', summary.tokoBaCount, summary.tokoNonBaCount, summary.totalStoresCount],
+    ['% Jumlah Toko', `${summary.tokoBaStorePercent}%`, `${summary.tokoNonBaStorePercent}%`, '100%'],
+    ['Total Omset Penjualan (IDR)', summary.tokoBaTotalRevenue, summary.tokoNonBaTotalRevenue, summary.totalAreaRevenue],
+    ['% Kontribusi Omset', `${summary.tokoBaRevenuePercent}%`, `${summary.tokoNonBaRevenuePercent}%`, '100%'],
+    ['Rata-rata Omset per Toko (IDR)', summary.tokoBaAvgRevenuePerStore, summary.tokoNonBaAvgRevenuePerStore, `${summary.productivityMultiplier}x Lebih Produktif`],
+    ['Produk Fokus Terjual (Pcs)', summary.tokoBaFocusPcs, summary.tokoNonBaFocusPcs, summary.tokoBaFocusPcs + summary.tokoNonBaFocusPcs],
+    ['Total Volume Terjual (Pcs)', summary.tokoBaTotalQty, summary.tokoNonBaTotalQty, summary.totalAreaQty],
+    [''],
+    ['KOMPOSISI TOTAL PENJUALAN', 'NILAI (IDR)', 'PERSENTASE', 'TIPE PERHITUNGAN'],
+    ['Semua Penjualan SPV', summary.spvTotalRevenue || 0, `${summary.spvRevenuePercent || 0}%`, 'Otomatis Tim SPV'],
+    ['Penjualan KA (Key Account)', summary.kaRevenue, `${summary.kaRevenuePercent}%`, summary.isManualKaMg ? 'Manual Override' : 'Otomatis Sheet'],
+    ['PENJUALAN DAZZLE ME MG', summary.mgRevenue, `${summary.mgRevenuePercent}%`, summary.isManualKaMg ? 'Manual Override' : 'Otomatis Sheet'],
+    ['Total Penjualan Area (SPV + KA + DAZZLE ME MG)', summary.totalAreaRevenue, '100%', summary.isManualKaMg ? 'Manual Override' : 'Otomatis Sheet'],
+  ];
 
-    // Sheet 2: All Stores Table
-    const tableHeaders = [
-      'Nama Toko / Outlet',
-      'Status Toko',
-      'Nama BA',
-      'Cover Area',
-      'Region',
-      'Sales',
-      'SPV',
-      'Total Omset (IDR)',
-      'Kontribusi terhadap Area (%)',
-      'Qty Terjual (Pcs)',
-      'Produk Fokus (Pcs)',
-      'Nilai Produk Fokus (IDR)',
-      'Jumlah Transaksi',
-      'Rata-rata Basket (IDR)',
-      'Klasifikasi Performa',
-      'Rekomendasi Strategis',
-    ];
+  const wsSummary = XLSX.utils.aoa_to_sheet(summaryAoa);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Head-to-Head');
 
-    const storeRows = stores.map((s) => [
-      s.storeName,
-      s.hasBa ? 'TOKO DENGAN BA' : 'TOKO NON-BA',
-      s.baName,
-      s.coverArea,
-      s.region,
-      s.salesName,
-      s.spvName,
-      s.totalRevenue,
-      `${s.contributionPercent}%`,
-      s.totalQtySold,
-      s.focusProductPcs,
-      s.focusProductValue,
-      s.transactionCount,
-      s.averageBasketSize,
-      s.performanceClass,
-      s.recommendationNote,
-    ]);
+  // Sheet 2: Detail Seluruh Toko
+  const detailHeaders = [
+    'No',
+    'Nama Toko',
+    'Status Toko',
+    'Nama BA',
+    'Nomor BA',
+    'Sales Rep',
+    'Trainer',
+    'Area',
+    'SPV',
+    'Total Omset (IDR)',
+    '% Kontribusi',
+    'Volume QTY (Pcs)',
+    'Produk Fokus (Pcs)',
+    'Nilai Produk Fokus (IDR)',
+    'Transaksi',
+    'Basket Size',
+    'Klasifikasi Performa',
+    'Rekomendasi Tindakan',
+  ];
 
-    const wsStores = XLSX.utils.aoa_to_sheet([tableHeaders, ...storeRows]);
-    XLSX.utils.book_append_sheet(wb, wsStores, 'Daftar Semua Toko');
+  const detailRows = stores.map((s, idx) => [
+    idx + 1,
+    s.storeName,
+    s.hasBa ? 'Toko dengan BA' : 'Toko Non-BA',
+    s.baName,
+    s.baNumber || '-',
+    s.salesName,
+    s.trainerName,
+    s.coverArea,
+    s.spvName,
+    s.totalRevenue,
+    `${s.contributionPercent}%`,
+    s.totalQtySold,
+    s.focusProductPcs,
+    s.focusProductValue,
+    s.transactionCount,
+    s.averageBasketSize,
+    s.performanceClass,
+    s.recommendationNote,
+  ]);
 
-    XLSX.writeFile(
-      wb,
-      `Kontribusi_Toko_BA_vs_NonBA_${selectedMonth}_${selectedYear}.xlsx`
-    );
-  });
+  const wsDetail = XLSX.utils.aoa_to_sheet([detailHeaders, ...detailRows]);
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail Toko BA vs Non-BA');
+
+  XLSX.writeFile(wb, `Laporan_Kontribusi_Toko_BA_vs_Non_BA_${selectedMonth}_${selectedYear}.xlsx`);
 }

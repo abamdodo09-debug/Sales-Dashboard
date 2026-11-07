@@ -7,6 +7,7 @@ import {
   TrainerTargetItem,
 } from '../types/dashboard';
 import { calculateSalesSalary, calculateBaSalary } from '../utils/costCalculations';
+import { isFocusProduct } from '../utils/analytics';
 import {
   loadFocusOverrides,
   saveFocusOverrides,
@@ -40,44 +41,51 @@ export interface TrainerTargetConfig {
   notes?: string;
 }
 
+export const STORAGE_KEY_TRAINER_LIST = 'salespro_custom_trainer_configs_v3';
+
 export const DEFAULT_TRAINERS: TrainerTargetConfig[] = [
   {
-    id: 'trainer-1',
-    trainerName: 'Siti Rahmawati',
-    areaCovered: 'AREA BARU & PEKANBARU',
+    id: 'trn-1',
+    trainerName: 'ARA',
+    areaCovered: 'PEKANBARU, DUMAI, SIAK, INDRAGIRI (Sales Albert, Ilhamsyah, Pareto, Tiwi)',
     region: 'PEKAN BARU',
-    targetSellOut: 350000000,
-    targetProdukFokusPcs: 600,
-    notes: 'Trainer Lead - Focus Brand barenbliss & lavojoy',
+    targetSellOut: 450000000,
+    targetProdukFokusPcs: 800,
+    notes: 'Trainer Lead - Area Pekanbaru & Dumai, Focus Brand barenbliss, Dazzle Me, lavojoy',
   },
   {
-    id: 'trainer-2',
-    trainerName: 'Dewi Lestari',
-    areaCovered: 'LUAR KOTA & DURI',
+    id: 'trn-2',
+    trainerName: 'RATIH',
+    areaCovered: 'DURI, DUMAI, BAGAN SIAPI API, LUAR KOTA (Sales Abdul Rahim, Ilhamsyah, Luar Kota, Pareto, Tiwi)',
     region: 'DURI',
-    targetSellOut: 280000000,
-    targetProdukFokusPcs: 450,
-    notes: 'Trainer Area Luar Kota - Modern Trade & General Trade',
-  },
-  {
-    id: 'trainer-3',
-    trainerName: 'Nurul Aini',
-    areaCovered: 'DUMAI & BAGAN',
-    region: 'DUMAI',
-    targetSellOut: 220000000,
-    targetProdukFokusPcs: 380,
-    notes: 'Trainer Area Dumai & Toko Kosmetik Mitra',
-  },
-  {
-    id: 'trainer-4',
-    trainerName: 'Farah Diba',
-    areaCovered: 'SELAT PANJANG & BENGKALIS',
-    region: 'RIAU KEPULAUAN',
-    targetSellOut: 180000000,
-    targetProdukFokusPcs: 300,
-    notes: 'Trainer Specialist Produk Fokus & Skincare',
+    targetSellOut: 420000000,
+    targetProdukFokusPcs: 750,
+    notes: 'Trainer Area Duri, Bagan Siapi Api & Luar Kota - Modern Trade & General Trade',
   },
 ];
+
+export function loadTrainerConfigs(): TrainerTargetConfig[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_TRAINER_LIST);
+    if (raw) {
+      const parsed: TrainerTargetConfig[] = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal membaca trainer list dari localStorage', e);
+  }
+  return DEFAULT_TRAINERS;
+}
+
+export function saveTrainerConfigs(trainers: TrainerTargetConfig[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY_TRAINER_LIST, JSON.stringify(trainers));
+  } catch (e) {
+    console.warn('Gagal menyimpan trainer list ke localStorage', e);
+  }
+}
 
 // Structure of monthly targets
 export interface MonthlyTargetStore {
@@ -396,7 +404,7 @@ export function aggregateTargetMatrix(records: TransactionRecord[], selectedMont
     const qty = Math.max(0, r.QTY || 0);
     const isSellIn = r.KET === 'SELL IN';
     const isSellOut = r.KET === 'SELL OUT' || !r.KET;
-    const isFocus = r.PRODUK_FOCUS === 'FOCUS';
+    const isFocus = isFocusProduct(r.PRODUK_FOCUS || r);
     const isLavojoy = (r.BRAND || '').toLowerCase().includes('lavojoy');
 
     // Area
@@ -642,7 +650,8 @@ export function aggregateTargetMatrix(records: TransactionRecord[], selectedMont
   }).sort((a, b) => (b.actualNonLavojoy + b.actualLavojoy) - (a.actualNonLavojoy + a.actualLavojoy));
 
   // 5. Array Trainer Targets (Sell Out & Produk Fokus)
-  const trainers: TrainerTargetItem[] = DEFAULT_TRAINERS.map((t) => {
+  const activeTrainerConfigs = loadTrainerConfigs();
+  const trainers: TrainerTargetItem[] = activeTrainerConfigs.map((t) => {
     const customConfig = customTrainerTargets[t.id] || customTrainerTargets[t.trainerName] || {};
     const targetSellOut =
       customConfig.targetSellOut !== undefined && customConfig.targetSellOut > 0
@@ -655,12 +664,12 @@ export function aggregateTargetMatrix(records: TransactionRecord[], selectedMont
 
     // Filter relevant BA and transactions for this trainer's area
     const matchingBas = Object.values(baMap).filter((b) => {
-      if (t.areaCovered.includes(b.coverArea)) return true;
-      if (t.region.includes(b.region)) return true;
+      if (t.areaCovered && t.areaCovered.includes(b.coverArea)) return true;
+      if (t.region && t.region.includes(b.region)) return true;
       return false;
     });
 
-    const baSupervisedCount = matchingBas.length > 0 ? matchingBas.length : Math.max(1, Math.floor(Object.keys(baMap).length / 4));
+    const baSupervisedCount = matchingBas.length > 0 ? matchingBas.length : Math.max(1, Math.floor(Object.keys(baMap).length / Math.max(1, activeTrainerConfigs.length)));
     const storeSupervisedCount = baSupervisedCount;
 
     // Sum actual sell out from matching records or proportionate
@@ -670,9 +679,9 @@ export function aggregateTargetMatrix(records: TransactionRecord[], selectedMont
     // If no direct area match, calculate based on overall team contribution
     if (actualSellOut === 0) {
       const totalAllSellOut = Object.values(baMap).reduce((acc, b) => acc + b.sellOutNonLavojoy + b.sellOutLavojoy, 0);
-      actualSellOut = Math.round(totalAllSellOut / DEFAULT_TRAINERS.length);
+      actualSellOut = Math.round(totalAllSellOut / Math.max(1, activeTrainerConfigs.length));
       const totalAllFocus = Object.values(baMap).reduce((acc, b) => acc + b.focusActualPcs, 0);
-      actualProdukFokusPcs = Math.round(totalAllFocus / DEFAULT_TRAINERS.length);
+      actualProdukFokusPcs = Math.round(totalAllFocus / Math.max(1, activeTrainerConfigs.length));
     }
 
     const achievementSellOutPct = targetSellOut > 0 ? (actualSellOut / targetSellOut) * 100 : 0;

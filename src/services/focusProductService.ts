@@ -1,4 +1,5 @@
 import { TransactionRecord, BaFocusProductItem, BaFocusProductOverride } from '../types/dashboard';
+import { isFocusProduct } from '../utils/analytics';
 
 export const FOCUS_PRODUCT_STORAGE_KEY = 'salespro_ba_focus_overrides_v2';
 export const DEFAULT_FOCUS_TARGET_PCS = 120; // Default target produk fokus per BA
@@ -145,7 +146,7 @@ export function aggregateBaFocusProductData(
     }
 
     // Cek apakah produk masuk kategori FOCUS
-    const isFocus = (r.PRODUK_FOCUS || '').trim().toUpperCase() === 'FOCUS';
+    const isFocus = isFocusProduct(r.PRODUK_FOCUS);
     const isSellOut = r.KET === 'SELL OUT' || !r.KET || r.KET === 'SELL IN'; // Ambil data penjualan aktual
 
     if (isFocus && isSellOut) {

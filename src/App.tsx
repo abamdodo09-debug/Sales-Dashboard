@@ -24,6 +24,7 @@ import {
   aggregateTimeframe,
   calculateComparisonGrowth,
   diagnoseSalesGap,
+  aggregateCategoryDetails,
   formatRupiah,
   formatPercent,
 } from './utils/analytics';
@@ -54,7 +55,11 @@ import { TargetManagementView } from './components/TargetManagementView';
 import { QuarterlySummaryView } from './components/QuarterlySummaryView';
 import { SellInVsSellOutView } from './components/SellInVsSellOutView';
 import { StoreBaContributionView } from './components/StoreBaContributionView';
+import { MasterStoreBaSettings } from './components/MasterStoreBaSettings';
+import { CentralKaMgManager } from './components/CentralKaMgManager';
+import { ActivePersonnelStoreInfo } from './components/ActivePersonnelStoreInfo';
 import { exportToExcel, exportToPdf } from './utils/exportUtils';
+import { loadSpvConsolidatedConfig } from './services/spvSellInSellOutService';
 import {
   TrendingUp,
   FileSpreadsheet,
@@ -161,21 +166,48 @@ export default function App() {
     return calculateSummary(filteredRecords);
   }, [filteredRecords]);
 
+  const activeYear = filters.TAHUN !== 'ALL' ? Number(filters.TAHUN) : 2026;
+
+  // SPV Month Config for current selected filter month (incorporates Sell In KA & DAZZLE ME MG)
+  const currentSpvMonthData = useMemo(() => {
+    return loadSpvConsolidatedConfig(records, filters.BULAN || 'OKTOBER', activeYear);
+  }, [records, filters.BULAN, activeYear]);
+
   // Timeframe trend data
   const trendData = useMemo(() => {
+    if (timeframeMode === 'bulanan') {
+      // Untuk mode bulanan, gunakan data multi-bulan dalam tahun aktif agar chart & growth indicator MoM dinamis
+      const monthlyBaseRecords = filterRecords(records, { ...filters, BULAN: 'ALL' });
+      const rawTrend = aggregateTimeframe(monthlyBaseRecords, 'bulanan');
+      return rawTrend.map((item) => {
+        const spvCfg = loadSpvConsolidatedConfig(records, item.subLabel, activeYear);
+        const kaVal = spvCfg.kaSellInValue || 0;
+        const mgVal = spvCfg.dazzleMeMgSellInValue || 0;
+        return {
+          ...item,
+          value: item.value + kaVal + mgVal,
+          kaSellIn: kaVal,
+          dazzleMeMgSellIn: mgVal,
+        };
+      });
+    }
     return aggregateTimeframe(filteredRecords, timeframeMode);
-  }, [filteredRecords, timeframeMode]);
+  }, [filteredRecords, records, filters, timeframeMode, activeYear]);
 
-  // Overall growth comparison
+  // Overall growth comparison (uses full records so previous period data like September can be retrieved)
   const growthComparison = useMemo(() => {
-    const dataset = filteredRecords.length > 0 ? filteredRecords : records;
-    return calculateComparisonGrowth(dataset, 'mom', filters);
-  }, [filteredRecords, records, filters]);
+    return calculateComparisonGrowth(records, 'mom', filters);
+  }, [records, filters]);
 
   // Gap & Root-Cause Diagnosis: Why did sales drop?
   const gapDiagnosis = useMemo(() => {
     return diagnoseSalesGap(records, filteredRecords, filters);
   }, [records, filteredRecords, filters]);
+
+  // Top Category details for dynamic category share cards
+  const topCategories = useMemo(() => {
+    return aggregateCategoryDetails(filteredRecords);
+  }, [filteredRecords]);
 
   // Live Sync with Google Apps Script
   const handleSyncGas = async () => {
@@ -351,7 +383,7 @@ export default function App() {
                     Estimasi Cost Area (Gaji &amp; Insentif Karyawan)
                   </h4>
                   <p className="text-xs text-slate-600 mt-0.5">
-                    Perhitungan otomatis kompensasi Sales (Sell In 80%-99% insentif 0,2%, 100%-119% insentif 0,3% + Rp 4,9 Jt) dan BA Toko (Sell Out min 25 Jt, 70%-99%, 100%-119% 1%, ≥120% 2% + Rp 3,9 Jt).
+                    Perhitungan otomatis kompensasi Sales (Sell In 80%-99% insentif 0,2%, 100%-119% insentif 0,3% + Rp 4,9 Jt) dan BA Toko (Sell Out min 25 Jt, 70%-99%, 100%-119% 2%, ≥120% 2% + Rp 3,9 Jt).
                   </p>
                 </div>
               </div>
@@ -369,6 +401,9 @@ export default function App() {
               data={trendData}
               mode={timeframeMode}
               onModeChange={setTimeframeMode}
+              selectedMonth={filters.BULAN}
+              kaSellInValue={currentSpvMonthData.kaSellInValue}
+              dazzleMeMgSellInValue={currentSpvMonthData.dazzleMeMgSellInValue}
             />
 
             {/* Split Grid: Category Share, Brand Share & Top Stores Quick Preview */}
@@ -398,46 +433,51 @@ export default function App() {
                   </div>
 
                   <div className="mt-4 space-y-3">
-                    {[
-                      { name: 'Lip Makeup', gradient: 'bg-gradient-to-r from-fuchsia-500 to-pink-500', badge: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200' },
-                      { name: 'Body Care', gradient: 'bg-gradient-to-r from-indigo-500 to-sky-400', badge: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-                      { name: 'Sunscreen', gradient: 'bg-gradient-to-r from-amber-500 to-orange-400', badge: 'bg-amber-100 text-amber-900 border-amber-200' },
-                      { name: 'Eye & Lash Tools', gradient: 'bg-gradient-to-r from-violet-500 to-purple-400', badge: 'bg-violet-100 text-violet-800 border-violet-200' },
-                    ].map((cat) => {
-                      const catRecords = filteredRecords.filter((r) => r.KATEGORI === cat.name);
-                      const catVal = catRecords.reduce((acc, curr) => acc + (curr.VALUE || 0), 0);
-                      const totalVal = summary.totalRevenue || 1;
-                      const pct = Math.max(0, (catVal / totalVal) * 100);
+                    {topCategories.length > 0 ? (
+                      topCategories.slice(0, 4).map((cat, idx) => {
+                        const colorConfigs = [
+                          { gradient: 'bg-gradient-to-r from-fuchsia-500 to-pink-500', badge: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200' },
+                          { gradient: 'bg-gradient-to-r from-indigo-500 to-sky-400', badge: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
+                          { gradient: 'bg-gradient-to-r from-amber-500 to-orange-400', badge: 'bg-amber-100 text-amber-900 border-amber-200' },
+                          { gradient: 'bg-gradient-to-r from-emerald-500 to-teal-400', badge: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+                        ];
+                        const cfg = colorConfigs[idx % colorConfigs.length];
+                        const pct = cat.contributionPercent;
 
-                      return (
-                        <div key={cat.name} className="space-y-1">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className={`font-bold px-2 py-0.5 rounded-md border text-[10px] ${cat.badge}`}>
-                              {cat.name}
-                            </span>
-                            <span className="font-mono font-extrabold text-slate-900 tabular-nums text-[11px]">
-                              {formatRupiah(catVal, true)}{' '}
-                              <span className="text-slate-500 font-medium">
-                                ({formatPercent(pct, false)})
+                        return (
+                          <div key={cat.category} className="space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className={`font-bold px-2 py-0.5 rounded-md border text-[10px] ${cfg.badge}`}>
+                                {cat.category}
                               </span>
-                            </span>
+                              <span className="font-mono font-extrabold text-slate-900 tabular-nums text-[11px]">
+                                {formatRupiah(cat.totalValue, true)}{' '}
+                                <span className="text-slate-500 font-medium">
+                                  ({formatPercent(pct, false)})
+                                </span>
+                              </span>
+                            </div>
+                            <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden p-0.5 border border-slate-200/60 shadow-inner">
+                              <div
+                                className={`${cfg.gradient} h-full rounded-full transition-all duration-500`}
+                                style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden p-0.5 border border-slate-200/60 shadow-inner">
-                            <div
-                              className={`${cat.gradient} h-full rounded-full transition-all duration-500`}
-                              style={{ width: `${Math.min(100, Math.max(3, pct))}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    ) : (
+                      <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                        Tidak ada transaksi kategori pada filter ini.
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-fuchsia-100 flex items-center justify-between text-xs text-slate-500">
                   <span className="font-medium">Pilar Portofolio:</span>
                   <span className="font-extrabold px-2.5 py-0.5 rounded-full bg-fuchsia-100 text-fuchsia-900 border border-fuchsia-200 text-[11px]">
-                    💄 Lip Makeup &amp; Body Care
+                    💄 {topCategories.slice(0, 2).map((c) => c.category).join(' & ') || 'Lip Makeup & Body Care'}
                   </span>
                 </div>
               </div>
@@ -626,6 +666,8 @@ export default function App() {
             records={filteredRecords}
             allRecords={records}
             filters={filters}
+            onFilterChange={handleFilterChange}
+            onNavigateTab={(tab) => setActiveTab(tab as any)}
           />
         )}
 
@@ -656,7 +698,7 @@ export default function App() {
 
         {/* Tab: Daftar Tagihan Toko & Aging Piutang */}
         {activeTab === 'aging' && (
-          <StoreAgingBills filters={filters} />
+          <StoreAgingBills records={records} filters={filters} />
         )}
 
         {/* Tab: KPI Sales Scorecard (Balanced Scorecard 100 Poin) */}
@@ -671,7 +713,11 @@ export default function App() {
 
         {/* Tab: Review Weekly Sell Out BA (Cover Sales & Trainer) */}
         {activeTab === 'weekly_ba' && (
-          <ReviewWeeklySellOutBa records={filteredRecords} filters={filters} />
+          <ReviewWeeklySellOutBa
+            records={filteredRecords}
+            allRecords={records}
+            filters={filters}
+          />
         )}
 
         {/* Tab: Kontribusi Toko BA vs Non-BA */}
@@ -680,6 +726,37 @@ export default function App() {
             records={filteredRecords}
             allRecords={records}
             filters={filters}
+            onNavigateToSettings={() => setActiveTab('pengaturan_master')}
+          />
+        )}
+
+        {/* Tab: Kelola Sell In KA & DAZZLE ME MG (Central Edit & History) */}
+        {activeTab === 'manage_ka_mg' && (
+          <CentralKaMgManager
+            records={records}
+            filters={filters}
+            onDataUpdated={() => {
+              showToast('Pencapaian Sell In KA & DAZZLE ME MG berhasil diperbarui dan disinkronkan ke seluruh dashboard!');
+            }}
+          />
+        )}
+
+        {/* Tab: Info Keaktifan SDM & Toko (Realtime Google Sheet) */}
+        {activeTab === 'info_keaktifan' && (
+          <ActivePersonnelStoreInfo
+            records={records}
+            filters={filters}
+            onFilterChange={handleFilterChange}
+          />
+        )}
+
+        {/* Tab: Pengaturan Master Toko, BA & Sales */}
+        {activeTab === 'pengaturan_master' && (
+          <MasterStoreBaSettings
+            records={records}
+            onDataUpdated={() => {
+              showToast('Data Master Toko, BA & Sales berhasil disimpan!');
+            }}
           />
         )}
 

@@ -16,6 +16,10 @@ import {
   Check,
   Users,
   RefreshCw,
+  Plus,
+  Trash2,
+  Search,
+  Store,
 } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
@@ -31,6 +35,22 @@ export interface WeeklyStoreConfig {
   region: string;
   targetMonthly: number;
 }
+
+// 7 Toko yang direvisi untuk dihilangkan dari coveran sales ILHAMSYAH sesuai instruksi pengguna
+export const EXCLUDED_ILHAMSYAH_STORES = new Set([
+  'miss glam bukit barisan',
+  'miss glam sudirman',
+  'al kautsar cosmetik',
+  'annisa cosmetik arifin',
+  'annisa kosmetik (duri)',
+  'miss glam marpoyan',
+  'toko annisa kosmetik',
+]);
+
+export const isStoreExcludedFromIlhamsyah = (sales: string | undefined, storeName: string | undefined): boolean => {
+  if (!sales || !storeName) return false;
+  return sales.trim().toUpperCase() === 'ILHAMSYAH' && EXCLUDED_ILHAMSYAH_STORES.has(storeName.trim().toLowerCase());
+};
 
 // 80 Master Toko, BA, Sales, dan Trainer persis sesuai gambar image_001d0f79.png
 export const DEFAULT_WEEKLY_STORES: WeeklyStoreConfig[] = [
@@ -206,26 +226,6 @@ export const DEFAULT_WEEKLY_STORES: WeeklyStoreConfig[] = [
     coverArea: 'KAMPAR',
     region: 'TAMBANG',
     targetMonthly: 45000000,
-  },
-  {
-    id: 'ws-18',
-    storeName: 'MISS GLAM BUKIT BARISAN',
-    baName: 'YOLANDA OKTAVIA',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'ARA',
-    coverArea: 'PEKANBARU',
-    region: 'PEKAN BARU',
-    targetMonthly: 70000000,
-  },
-  {
-    id: 'ws-19',
-    storeName: 'MISS GLAM SUDIRMAN',
-    baName: 'MEGA UTAMI',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'ARA',
-    coverArea: 'PEKANBARU',
-    region: 'PEKAN BARU',
-    targetMonthly: 75000000,
   },
   {
     id: 'ws-20',
@@ -560,36 +560,6 @@ export const DEFAULT_WEEKLY_STORES: WeeklyStoreConfig[] = [
     targetMonthly: 45000000,
   },
   {
-    id: 'ws-52',
-    storeName: 'AL KAUTSAR COSMETIK',
-    baName: 'RIRIN EKOWATI',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'RATIH',
-    coverArea: 'PEKANBARU',
-    region: 'PEKAN BARU',
-    targetMonthly: 48000000,
-  },
-  {
-    id: 'ws-53',
-    storeName: 'ANNISA COSMETIK ARIFIN',
-    baName: 'WINA AULIA',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'RATIH',
-    coverArea: 'PEKANBARU',
-    region: 'PEKAN BARU',
-    targetMonthly: 48000000,
-  },
-  {
-    id: 'ws-54',
-    storeName: 'ANNISA KOSMETIK (DURI)',
-    baName: 'NENENG HASANAH',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'RATIH',
-    coverArea: 'BENGKALIS',
-    region: 'DURI',
-    targetMonthly: 50000000,
-  },
-  {
     id: 'ws-55',
     storeName: 'CS BEAUTEE',
     baName: 'FITRIA NINGSIH',
@@ -598,16 +568,6 @@ export const DEFAULT_WEEKLY_STORES: WeeklyStoreConfig[] = [
     coverArea: 'PEKANBARU',
     region: 'PEKAN BARU',
     targetMonthly: 45000000,
-  },
-  {
-    id: 'ws-56',
-    storeName: 'MISS GLAM MARPOYAN',
-    baName: 'KIKI AMALIA',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'RATIH',
-    coverArea: 'PEKANBARU',
-    region: 'PEKAN BARU',
-    targetMonthly: 75000000,
   },
   {
     id: 'ws-57',
@@ -648,16 +608,6 @@ export const DEFAULT_WEEKLY_STORES: WeeklyStoreConfig[] = [
     coverArea: 'PEKANBARU',
     region: 'PEKAN BARU',
     targetMonthly: 55000000,
-  },
-  {
-    id: 'ws-61',
-    storeName: 'TOKO ANNISA KOSMETIK',
-    baName: 'ANISA PUTRI',
-    salesName: 'ILHAMSYAH',
-    trainerName: 'RATIH',
-    coverArea: 'PEKANBARU',
-    region: 'PEKAN BARU',
-    targetMonthly: 48000000,
   },
   {
     id: 'ws-62',
@@ -857,10 +807,36 @@ export const DEFAULT_WEEKLY_STORES: WeeklyStoreConfig[] = [
   },
 ];
 
+// Snapshot default transaksi harian untuk Week 1 (01-07)
+// Contoh: BEAUTY STORE (BANGKINANG) total 6.033.400
+const SAMPLE_WEEK1_DAILY_SNAPSHOT: Record<string, number[]> = {
+  'BEAUTY STORE (BANGKINANG)': [850000, 720000, 680000, 950000, 1150000, 980000, 703400], // Total: 6.033.400
+  'CITRA SWALAYAN': [1100000, 920000, 1250000, 1400000, 1850000, 1600000, 780000],
+  'HIDAYAH BELILAS': [850000, 980000, 750000, 1050000, 1300000, 1150000, 690000],
+  'HIDAYAH KOSMETIK PERAWANG': [520000, 950000, 820000, 810000, 1200000, 1150000, 540000],
+  'IDOLA KOSMETIK AIR MOLEK': [1500000, 290000, 810000, 2050000, 1720000, 1680000, 790000],
+  'JINAAN STORE': [980000, 690000, 740000, 135000, 380000, 510000, 560000],
+  'TOKO RIS IDOLA KOSMETIK': [14500000, 750000, 1050000, 1280000, 1850000, 1620000, 810000],
+  'TOKO MY KOSMETIK (PKL KERINCI)': [780000, 1560000, 1070000, 550000, 960000, 1110000, 660000],
+  'TOKO MY KOSMETIK (SOREK)': [710000, 1120000, 805000, 950000, 1060000, 740000, 595000],
+  'MISS GLAM TEMBILAHAN': [1520000, 500000, 420000, 4180000, 3300000, 750000, 1010000],
+  'MISS GLAM SUDIRMAN': [2150000, 1650000, 1840000, 2800000, 3370000, 2980000, 1710000],
+  'MISS GLAM BUKIT BARISAN': [1620000, 1440000, 1240000, 2400000, 2710000, 2580000, 1240000],
+  'TOKO ALANA BEAUTY': [1270000, 1120000, 1010000, 1680000, 2140000, 1840000, 860000],
+  'AL KAUTSAR COSMETIK': [1050000, 860000, 740000, 1270000, 1650000, 1440000, 720000],
+  'ANNISA COSMETIK ARIFIN': [1180000, 980000, 860000, 1470000, 1840000, 1620000, 810000],
+  'ANNISA KOSMETIK (DURI)': [1440000, 1240000, 1090000, 1730000, 2320000, 2010000, 1010000],
+  'GLASTING GLOW': [1650000, 1350000, 1210000, 1930000, 2490000, 2280000, 1180000],
+  'GUARDIAN CIPUTRA BNB LV': [1710000, 1470000, 1330000, 2140000, 2710000, 2490000, 1270000],
+  'WATSON CIPUTRA SERAYA': [1650000, 1420000, 1290000, 2080000, 2610000, 2410000, 1210000],
+};
+
 // Snapshot default transaksi harian untuk Week 2 (08-14)
 // Hari 1: (08) SELASA, Hari 2: (09) RABU, Hari 3: (10) KAMIS, Hari 4: (11) JUMAT,
 // Hari 5: (12) SABTU, Hari 6: (13) MINGGU, Hari 7: (14) SENIN
+// Contoh: BEAUTY STORE (BANGKINANG) total 57.945.840
 const SAMPLE_DAILY_SNAPSHOT: Record<string, number[]> = {
+  'BEAUTY STORE (BANGKINANG)': [8250000, 7890000, 6540000, 9120000, 11450000, 9425840, 5270000], // Total: 57.945.840
   'CITRA SWALAYAN': [1250000, 980000, 1420000, 1650000, 2100000, 1950000, 850000],
   'HIDAYAH BELILAS': [950000, 1100000, 890000, 1200000, 1450000, 1300000, 780000],
   'HIDAYAH KOSMETIK PERAWANG': [582900, 1089500, 949000, 914500, 1365000, 1341900, 620000],
@@ -910,19 +886,26 @@ const MONTH_NAMES = [
 ];
 
 const STORAGE_KEY_WEEKLY_STORES = 'salespro_weekly_stores_config_v5';
+const STORAGE_KEY_WEEKLY_DELETED_STORES = 'salespro_weekly_deleted_stores_v5';
 const STORAGE_KEY_WEEKLY_ACTUALS = 'salespro_weekly_actuals_v5';
 const STORAGE_KEY_WEEKLY_PERFORMA = 'salespro_weekly_performa_v5';
 const STORAGE_KEY_WEEKLY_CUMULATIVE = 'salespro_weekly_cumulative_v5';
 
 interface ReviewWeeklySellOutBaProps {
   records: TransactionRecord[];
+  allRecords?: TransactionRecord[];
   filters: DashboardFilters;
 }
 
 export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
   records,
+  allRecords,
   filters,
 }) => {
+  const sourceRecords = useMemo(() => {
+    return allRecords && allRecords.length > 0 ? allRecords : records;
+  }, [allRecords, records]);
+
   const reportRef = useRef<HTMLDivElement>(null);
 
   // Filter States
@@ -944,13 +927,37 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Store Configuration (80 Toko Master)
+  // Daftar Toko yang Pernah Dihapus / Dikurangi oleh Pengguna
+  const [deletedStoreNames, setDeletedStoreNames] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_WEEKLY_DELETED_STORES);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to load deletedStoreNames', e);
+    }
+    return [];
+  });
+
+  // Modal Kelola & Kurangi Toko
+  const [isManageStoresModalOpen, setIsManageStoresModalOpen] = useState<boolean>(false);
+  const [manageStoresSearch, setManageStoresSearch] = useState<string>('');
+  const [manageStoresTab, setManageStoresTab] = useState<'all' | 'active' | 'deleted'>('all');
+  const [manageStoresSalesFilter, setManageStoresSalesFilter] = useState<string>('ALL');
+  const [workingDeletedStores, setWorkingDeletedStores] = useState<string[]>([]);
+
+  // Store Configuration (Toko Master yang bisa ditambah dan dikurangi)
   const [storesList, setStoresList] = useState<WeeklyStoreConfig[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_WEEKLY_STORES);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length >= 70) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Bersihkan toko ILHAMSYAH yang direvisi untuk dihapus
+          return parsed.filter((s: WeeklyStoreConfig) => !isStoreExcludedFromIlhamsyah(s.salesName, s.storeName));
+        }
       }
     } catch (e) {
       console.warn('Failed to load storesList from localStorage', e);
@@ -994,9 +1001,47 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
     return Array.from(set).sort();
   }, [storesList, records]);
 
+  // Master Store List (gabungan default stores, custom added stores, dan stores dari sheets)
+  const allMasterStores = useMemo(() => {
+    const map = new Map<string, WeeklyStoreConfig>();
+    DEFAULT_WEEKLY_STORES.forEach((s) => {
+      if (!isStoreExcludedFromIlhamsyah(s.salesName, s.storeName)) {
+        map.set(s.storeName.trim().toLowerCase(), s);
+      }
+    });
+    storesList.forEach((s) => {
+      if (!isStoreExcludedFromIlhamsyah(s.salesName, s.storeName)) {
+        map.set(s.storeName.trim().toLowerCase(), s);
+      }
+    });
+    records.forEach((r) => {
+      if (!r.NAMA_STORE) return;
+      if (isStoreExcludedFromIlhamsyah(r.SALES, r.NAMA_STORE)) return;
+      const key = r.NAMA_STORE.trim().toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, {
+          id: `gs-store-${key.replace(/\s+/g, '-')}`,
+          storeName: r.NAMA_STORE.trim(),
+          baName: r.BA && r.BA !== '-' ? r.BA.trim() : 'BA COUNTER',
+          salesName: r.SALES || 'SALES UMUM',
+          trainerName: 'ARA',
+          coverArea: r.COVER_AREA || 'AREA BARU',
+          region: r.REGION || 'PEKAN BARU',
+          targetMonthly: 45000000,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [storesList, records]);
+
   // Active stores filtered by Sales Coveran and Trainer, synchronized with Google Sheets data
   const activeStoresList = useMemo(() => {
-    let list = [...storesList];
+    const deletedSet = new Set(deletedStoreNames.map((n) => n.trim().toLowerCase()));
+
+    // Exclude any deleted stores and excluded ilhamsyah stores from active list
+    let list = storesList.filter(
+      (s) => !deletedSet.has(s.storeName.trim().toLowerCase()) && !isStoreExcludedFromIlhamsyah(s.salesName, s.storeName)
+    );
 
     // Priority sync: if records from Google Sheet have a matching store with a live BA name, apply it!
     const sheetBaByStore: Record<string, string> = {};
@@ -1014,13 +1059,19 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
       return s;
     });
 
-    // Auto-sync additional stores from connected Google Sheet (records) if present
-    const existingNames = new Set(storesList.map((s) => s.storeName.trim().toLowerCase()));
+    // Auto-sync additional stores from connected Google Sheet (records) if present and NOT deleted
+    const existingNames = new Set(list.map((s) => s.storeName.trim().toLowerCase()));
     const extraStores: WeeklyStoreConfig[] = [];
 
     records.forEach((r) => {
       if (!r.NAMA_STORE) return;
+      // Jangan masukkan toko yang dikecualikan dari ILHAMSYAH
+      if (isStoreExcludedFromIlhamsyah(r.SALES, r.NAMA_STORE)) return;
+
       const sLower = r.NAMA_STORE.trim().toLowerCase();
+      // JIKA TOKO DIHAPUS/DIKURANGI OLEH PENGGUNA, JANGAN DITAMBAHKAN LAGI!
+      if (deletedSet.has(sLower)) return;
+
       if (!existingNames.has(sLower)) {
         existingNames.add(sLower);
         extraStores.push({
@@ -1083,7 +1134,7 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
     }
 
     return list;
-  }, [storesList, records, selectedSales, selectedTrainer, filters.REGION, filters.NAMA_STORE, filters.searchQuery]);
+  }, [storesList, deletedStoreNames, records, selectedSales, selectedTrainer, filters.REGION, filters.NAMA_STORE, filters.searchQuery]);
 
   // Custom Daily Sell Out Overrides (Key: `${storeName}_${dateKey}`)
   const [customDailyActuals, setCustomDailyActuals] = useState<Record<string, number>>(() => {
@@ -1139,12 +1190,35 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
   const [editTargetMonthly, setEditTargetMonthly] = useState<number>(45000000);
   const [editStoreName, setEditStoreName] = useState<string>('');
   const [editBaName, setEditBaName] = useState<string>('');
+  const [editSalesName, setEditSalesName] = useState<string>('');
+  const [editTrainerName, setEditTrainerName] = useState<string>('');
+  const [editCoverArea, setEditCoverArea] = useState<string>('');
+  const [editRegion, setEditRegion] = useState<string>('');
   const [editPerformaVal, setEditPerformaVal] = useState<number>(0);
   const [editCumulativeVal, setEditCumulativeVal] = useState<number>(0);
+
+  // Modal Tambah Kolom Toko Baru
+  const [isAddingStore, setIsAddingStore] = useState<boolean>(false);
+  const [newStoreName, setNewStoreName] = useState<string>('');
+  const [newBaName, setNewBaName] = useState<string>('');
+  const [newSalesName, setNewSalesName] = useState<string>('ALBERT FERNANDO');
+  const [newTrainerName, setNewTrainerName] = useState<string>('ARA');
+  const [newCoverArea, setNewCoverArea] = useState<string>('PEKANBARU');
+  const [newRegion, setNewRegion] = useState<string>('PEKAN BARU');
+  const [newTargetMonthly, setNewTargetMonthly] = useState<number>(45000000);
+  const [newCumulativeVal, setNewCumulativeVal] = useState<number>(0);
+  const [newPerformaVal, setNewPerformaVal] = useState<number>(0);
 
   // Quick Inline Edit Cell
   const [inlineEditCell, setInlineEditCell] = useState<{ storeName: string; dateKey: string; currentVal: number } | null>(null);
   const [inlineInputVal, setInlineInputVal] = useState<string>('');
+
+  // Modal Edit Pencapaian Kumulatif Progresif (Week 1, Week 2, Week 3, Week 4)
+  const [editingCumulativeModal, setEditingCumulativeModal] = useState<{
+    store: WeeklyStoreConfig;
+    selectedWeekTab: 'WEEK 1' | 'WEEK 2' | 'WEEK 3' | 'WEEK 4';
+  } | null>(null);
+  const [cumulativeInputVal, setCumulativeInputVal] = useState<number>(0);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -1215,10 +1289,15 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
     return `${selectedWeek} (${first}-${last})`;
   }, [activeDaysList, selectedWeek]);
 
-  // Transaction Map for fast lookup by store & date (strictly SELL OUT from Google Sheet records)
+  // Helper to normalize store names for flexible matching against Google Sheet data
+  const normalizeStore = (name: string): string => {
+    return (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  };
+
+  // Transaction Map for fast lookup by store & date (strictly pulling VALUE from Google Sheet records)
   const transactionsMap = useMemo(() => {
     const map: Record<string, number> = {};
-    for (const r of records) {
+    for (const r of sourceRecords) {
       if (!r.TANGGAL || !r.NAMA_STORE) continue;
       // Filter out returns
       if ((r.KET || '').toUpperCase() === 'RETURN') continue;
@@ -1252,20 +1331,33 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
       }
 
       if (rYear === year && rMonth === monthIdx + 1) {
-        const key = `${r.NAMA_STORE.trim().toLowerCase()}_${rDay}`;
         const val = r.VALUE || 0;
-        map[key] = (map[key] || 0) + val;
+        const sLower = r.NAMA_STORE.trim().toLowerCase();
+        const sNorm = normalizeStore(r.NAMA_STORE);
+
+        // Store by exact lowercase name + day
+        const keyExact = `${sLower}_${rDay}`;
+        map[keyExact] = (map[keyExact] || 0) + val;
+
+        // Store by normalized alphanumeric name + day
+        const keyNorm = `${sNorm}_${rDay}`;
+        map[keyNorm] = (map[keyNorm] || 0) + val;
+
+        // Store by formatted dateKey (YYYY-MM-DD)
+        const dateKey = `${rYear}-${String(rMonth).padStart(2, '0')}-${String(rDay).padStart(2, '0')}`;
+        map[`date_${sLower}_${dateKey}`] = (map[`date_${sLower}_${dateKey}`] || 0) + val;
+        map[`date_${sNorm}_${dateKey}`] = (map[`date_${sNorm}_${dateKey}`] || 0) + val;
       }
     }
     return map;
-  }, [records, year, monthIdx]);
+  }, [sourceRecords, year, monthIdx]);
 
   // Real cumulative sell out from Day 1 of the month up to the active week from Google Sheets
   const realCumulativeFromRecords = useMemo(() => {
     const map: Record<string, number> = {};
     const maxDay = activeDaysList.length > 0 ? activeDaysList[activeDaysList.length - 1].dayNum : 7;
 
-    for (const r of records) {
+    for (const r of sourceRecords) {
       if (!r.TANGGAL || !r.NAMA_STORE) continue;
       if ((r.KET || '').toUpperCase() === 'RETURN') continue;
 
@@ -1299,12 +1391,14 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
 
       if (rYear === year && rMonth === monthIdx + 1 && rDay <= maxDay) {
         const sKey = r.NAMA_STORE.trim().toLowerCase();
+        const sNorm = normalizeStore(r.NAMA_STORE);
         const val = r.VALUE || 0;
         map[sKey] = (map[sKey] || 0) + val;
+        map[sNorm] = (map[sNorm] || 0) + val;
       }
     }
     return map;
-  }, [records, year, monthIdx, activeDaysList]);
+  }, [sourceRecords, year, monthIdx, activeDaysList]);
 
   // Helper to get Sell Out on a specific day for a store
   const getDailySellOut = (store: WeeklyStoreConfig, dayNum: number, dateKey: string): number => {
@@ -1314,15 +1408,30 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
       return customDailyActuals[overrideKey];
     }
 
-    // 2. Direct lookup in synced Google Sheet transaction records
-    const txKey = `${store.storeName.trim().toLowerCase()}_${dayNum}`;
-    const sheetVal = transactionsMap[txKey];
+    // 2. Direct lookup in synced Google Sheet transaction records (by day and by dateKey)
+    const txKeyExact = `${store.storeName.trim().toLowerCase()}_${dayNum}`;
+    const txKeyNorm = `${normalizeStore(store.storeName)}_${dayNum}`;
+    const txDateExact = `date_${store.storeName.trim().toLowerCase()}_${dateKey}`;
+    const txDateNorm = `date_${normalizeStore(store.storeName)}_${dateKey}`;
+
+    const sheetVal =
+      transactionsMap[txDateExact] ??
+      transactionsMap[txDateNorm] ??
+      transactionsMap[txKeyExact] ??
+      transactionsMap[txKeyNorm];
+
     if (sheetVal !== undefined && sheetVal > 0) {
       return sheetVal;
     }
 
     // 3. Fallback to sample snapshot if Google Sheet doesn't have data for that store/day
-    if (selectedWeek === 'WEEK 2' && SAMPLE_DAILY_SNAPSHOT[store.storeName]) {
+    if (dayNum >= 1 && dayNum <= 7 && SAMPLE_WEEK1_DAILY_SNAPSHOT[store.storeName]) {
+      const idxInWeek = dayNum - 1;
+      if (idxInWeek >= 0 && idxInWeek < SAMPLE_WEEK1_DAILY_SNAPSHOT[store.storeName].length) {
+        const sampleVal = SAMPLE_WEEK1_DAILY_SNAPSHOT[store.storeName][idxInWeek];
+        if (sampleVal !== undefined) return sampleVal;
+      }
+    } else if (dayNum >= 8 && dayNum <= 14 && SAMPLE_DAILY_SNAPSHOT[store.storeName]) {
       const idxInWeek = dayNum - 8;
       if (idxInWeek >= 0 && idxInWeek < SAMPLE_DAILY_SNAPSHOT[store.storeName].length) {
         const sampleVal = SAMPLE_DAILY_SNAPSHOT[store.storeName][idxInWeek];
@@ -1401,20 +1510,130 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
       }
     });
 
-    // 8. Pencapaian Week Kumulatif (Row 3) - sync with real Google Sheets cumulative
+    // Helper untuk menghitung total sell out toko pada rentang hari tertentu
+    const getWeekRangeSum = (store: WeeklyStoreConfig, startDay: number, endDay: number) => {
+      let sum = 0;
+      const maxDay = Math.min(endDay, totalDaysInMonth);
+      for (let d = startDay; d <= maxDay; d++) {
+        const dayNumStr = d.toString().padStart(2, '0');
+        const monthNumStr = (monthIdx + 1).toString().padStart(2, '0');
+        const dateKey = `${year}-${monthNumStr}-${dayNumStr}`;
+        sum += getDailySellOut(store, d, dateKey);
+      }
+      return sum;
+    };
+
+    // Helper untuk mengecek nilai override kumulatif yang diedit pengguna
+    const getCumulativeOverride = (storeName: string, week: string): number | undefined => {
+      const mPrefix = selectedMonth.trim().toUpperCase();
+      const k1 = `${mPrefix}_${week}_${storeName}`;
+      const k2 = `${week}_${storeName}`;
+      if (customCumulative[k1] !== undefined) return customCumulative[k1];
+      if (customCumulative[k2] !== undefined) return customCumulative[k2];
+      // Fallback untuk backward-compatibility jika week aktif sama dengan selectedWeek
+      if (week === selectedWeek && customCumulative[storeName] !== undefined) {
+        return customCumulative[storeName];
+      }
+      return undefined;
+    };
+
+    // 8. Pencapaian Week Kumulatif dengan Formula Progresif per Toko:
+    // Week 1 (01-07): Total pencapaian toko dari tgl 01 sampai 07
+    // Week 2 (08-14): Total Week 1 + Total Week 2 toko
+    // Week 3 (15-21): Pencapaian Week 2 + Total Week 3 toko
+    // Week 4 (22-30/31): Pencapaian Week 3 + Total Week 4 toko
+    // Semua tahapan bisa diedit manual dan disimpan di localStorage
     const storeCumulativeToDate: Record<string, number> = {};
+    const isStoreCustomCumulative: Record<string, boolean> = {};
+    const storeWeeklyBreakdowns: Record<
+      string,
+      {
+        w1Actual: number;
+        w1Pencapaian: number;
+        isW1Custom: boolean;
+        w2Actual: number;
+        w2Formula: number;
+        w2Pencapaian: number;
+        isW2Custom: boolean;
+        w3Actual: number;
+        w3Formula: number;
+        w3Pencapaian: number;
+        isW3Custom: boolean;
+        w4Actual: number;
+        w4Formula: number;
+        w4Pencapaian: number;
+        isW4Custom: boolean;
+      }
+    > = {};
+
     activeStoresList.forEach((s) => {
-      const sKey = s.storeName.trim().toLowerCase();
-      if (customCumulative[s.storeName] !== undefined) {
-        storeCumulativeToDate[s.storeName] = customCumulative[s.storeName];
-      } else if (realCumulativeFromRecords[sKey] && realCumulativeFromRecords[sKey] > 0) {
-        storeCumulativeToDate[s.storeName] = realCumulativeFromRecords[sKey];
-      } else if (selectedWeek === 'WEEK 2' && SAMPLE_CUMULATIVE_SNAPSHOT[s.storeName] !== undefined) {
-        storeCumulativeToDate[s.storeName] = SAMPLE_CUMULATIVE_SNAPSHOT[s.storeName];
+      // 1. Total actual per week range
+      const w1Actual = getWeekRangeSum(s, 1, 7);
+      const w2Actual = getWeekRangeSum(s, 8, 14);
+      const w3Actual = getWeekRangeSum(s, 15, 21);
+      const w4Actual = getWeekRangeSum(s, 22, totalDaysInMonth);
+
+      // Check overrides per week
+      const overrideW1 = getCumulativeOverride(s.storeName, 'WEEK 1');
+      const isW1Custom = overrideW1 !== undefined;
+      const w1Pencapaian = overrideW1 !== undefined ? overrideW1 : w1Actual;
+
+      const overrideW2 = getCumulativeOverride(s.storeName, 'WEEK 2');
+      const isW2Custom = overrideW2 !== undefined;
+      const w2Formula = w1Pencapaian + w2Actual;
+      const w2Pencapaian = overrideW2 !== undefined ? overrideW2 : w2Formula;
+
+      const overrideW3 = getCumulativeOverride(s.storeName, 'WEEK 3');
+      const isW3Custom = overrideW3 !== undefined;
+      const w3Formula = w2Pencapaian + w3Actual;
+      const w3Pencapaian = overrideW3 !== undefined ? overrideW3 : w3Formula;
+
+      const overrideW4 = getCumulativeOverride(s.storeName, 'WEEK 4');
+      const isW4Custom = overrideW4 !== undefined;
+      const w4Formula = w3Pencapaian + w4Actual;
+      const w4Pencapaian = overrideW4 !== undefined ? overrideW4 : w4Formula;
+
+      storeWeeklyBreakdowns[s.storeName] = {
+        w1Actual,
+        w1Pencapaian,
+        isW1Custom,
+        w2Actual,
+        w2Formula,
+        w2Pencapaian,
+        isW2Custom,
+        w3Actual,
+        w3Formula,
+        w3Pencapaian,
+        isW3Custom,
+        w4Actual,
+        w4Formula,
+        w4Pencapaian,
+        isW4Custom,
+      };
+
+      // Tentukan nilai kumulatif untuk periode week yang sedang aktif
+      if (selectedWeek === 'WEEK 1') {
+        storeCumulativeToDate[s.storeName] = w1Pencapaian;
+        isStoreCustomCumulative[s.storeName] = isW1Custom;
+      } else if (selectedWeek === 'WEEK 2') {
+        storeCumulativeToDate[s.storeName] = w2Pencapaian;
+        isStoreCustomCumulative[s.storeName] = isW2Custom;
+      } else if (selectedWeek === 'WEEK 3') {
+        storeCumulativeToDate[s.storeName] = w3Pencapaian;
+        isStoreCustomCumulative[s.storeName] = isW3Custom;
+      } else if (selectedWeek === 'WEEK 4') {
+        storeCumulativeToDate[s.storeName] = w4Pencapaian;
+        isStoreCustomCumulative[s.storeName] = isW4Custom;
       } else {
-        storeCumulativeToDate[s.storeName] = Math.round((storeWeeklyTotals[s.storeName] || 0) * 1.35);
+        // CUSTOM range: kumulatif dari hari 1 s/d hari terakhir di filter
+        const lastDay = activeDaysList.length > 0 ? activeDaysList[activeDaysList.length - 1].dayNum : totalDaysInMonth;
+        const customSum = getWeekRangeSum(s, 1, lastDay);
+        const overrideCustom = getCumulativeOverride(s.storeName, 'CUSTOM');
+        storeCumulativeToDate[s.storeName] = overrideCustom !== undefined ? overrideCustom : customSum;
+        isStoreCustomCumulative[s.storeName] = overrideCustom !== undefined;
       }
     });
+
     const totalCumulativeToDate = Object.values(storeCumulativeToDate).reduce((acc, v) => acc + v, 0);
 
     // 9. Persen Target & Persentase Pencapaian
@@ -1435,10 +1654,25 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
       storePerforma,
       storeCumulativeToDate,
       totalCumulativeToDate,
+      isStoreCustomCumulative,
+      storeWeeklyBreakdowns,
       persenTarget,
       persentasePencapaianMingguan,
     };
-  }, [activeStoresList, activeDaysList, customDailyActuals, customPerformaBa, customCumulative, customPersenTarget, selectedWeek, transactionsMap, realCumulativeFromRecords]);
+  }, [
+    activeStoresList,
+    activeDaysList,
+    customDailyActuals,
+    customPerformaBa,
+    customCumulative,
+    customPersenTarget,
+    selectedWeek,
+    selectedMonth,
+    transactionsMap,
+    totalDaysInMonth,
+    year,
+    monthIdx,
+  ]);
 
   // Open Edit Store Modal
   const handleOpenEditStore = (store: WeeklyStoreConfig) => {
@@ -1446,6 +1680,10 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
     setEditTargetMonthly(store.targetMonthly);
     setEditStoreName(store.storeName);
     setEditBaName(store.baName);
+    setEditSalesName(store.salesName || 'ALBERT FERNANDO');
+    setEditTrainerName(store.trainerName || 'ARA');
+    setEditCoverArea(store.coverArea || 'PEKANBARU');
+    setEditRegion(store.region || 'PEKAN BARU');
     setEditPerformaVal(calculationData.storePerforma[store.storeName] || 0);
     setEditCumulativeVal(calculationData.storeCumulativeToDate[store.storeName] || 0);
   };
@@ -1457,8 +1695,12 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
       if (s.id === editingStore.id) {
         return {
           ...s,
-          storeName: editStoreName || s.storeName,
-          baName: editBaName || s.baName,
+          storeName: editStoreName.trim().toUpperCase() || s.storeName,
+          baName: editBaName.trim().toUpperCase() || s.baName,
+          salesName: editSalesName.trim().toUpperCase() || s.salesName,
+          trainerName: editTrainerName.trim().toUpperCase() || s.trainerName,
+          coverArea: editCoverArea.trim().toUpperCase() || s.coverArea,
+          region: editRegion.trim().toUpperCase() || s.region,
           targetMonthly: editTargetMonthly,
         };
       }
@@ -1482,7 +1724,14 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
     }
 
     if (editCumulativeVal >= 0) {
-      const newCum = { ...customCumulative, [editingStore.storeName]: editCumulativeVal };
+      const activeWeekKey = `${selectedWeek}_${editingStore.storeName}`;
+      const monthWeekKey = `${selectedMonth.trim().toUpperCase()}_${selectedWeek}_${editingStore.storeName}`;
+      const newCum = {
+        ...customCumulative,
+        [editingStore.storeName]: editCumulativeVal,
+        [activeWeekKey]: editCumulativeVal,
+        [monthWeekKey]: editCumulativeVal,
+      };
       setCustomCumulative(newCum);
       try {
         localStorage.setItem(STORAGE_KEY_WEEKLY_CUMULATIVE, JSON.stringify(newCum));
@@ -1493,6 +1742,300 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
 
     setEditingStore(null);
     showToast(`Target & informasi ${editStoreName || editingStore.storeName} berhasil diperbarui!`);
+  };
+
+  // Buka Modal Edit Pencapaian Kumulatif Progresif
+  const handleOpenCumulativeModal = (store: WeeklyStoreConfig, targetWeek?: 'WEEK 1' | 'WEEK 2' | 'WEEK 3' | 'WEEK 4') => {
+    const weekTab = targetWeek || ((selectedWeek === 'CUSTOM' ? 'WEEK 2' : selectedWeek) as 'WEEK 1' | 'WEEK 2' | 'WEEK 3' | 'WEEK 4');
+    setEditingCumulativeModal({
+      store,
+      selectedWeekTab: weekTab,
+    });
+    const breakdown = calculationData.storeWeeklyBreakdowns?.[store.storeName];
+    let valForTab = calculationData.storeCumulativeToDate[store.storeName] || 0;
+    if (breakdown) {
+      if (weekTab === 'WEEK 1') valForTab = breakdown.w1Pencapaian;
+      else if (weekTab === 'WEEK 2') valForTab = breakdown.w2Pencapaian;
+      else if (weekTab === 'WEEK 3') valForTab = breakdown.w3Pencapaian;
+      else if (weekTab === 'WEEK 4') valForTab = breakdown.w4Pencapaian;
+    }
+    setCumulativeInputVal(valForTab);
+  };
+
+  // Ganti Tab Week di dalam Modal Pencapaian Kumulatif
+  const handleSwitchCumulativeTab = (tab: 'WEEK 1' | 'WEEK 2' | 'WEEK 3' | 'WEEK 4') => {
+    if (!editingCumulativeModal) return;
+    const store = editingCumulativeModal.store;
+    const breakdown = calculationData.storeWeeklyBreakdowns?.[store.storeName];
+    let valForTab = 0;
+    if (breakdown) {
+      if (tab === 'WEEK 1') valForTab = breakdown.w1Pencapaian;
+      else if (tab === 'WEEK 2') valForTab = breakdown.w2Pencapaian;
+      else if (tab === 'WEEK 3') valForTab = breakdown.w3Pencapaian;
+      else if (tab === 'WEEK 4') valForTab = breakdown.w4Pencapaian;
+    }
+    setEditingCumulativeModal({ ...editingCumulativeModal, selectedWeekTab: tab });
+    setCumulativeInputVal(valForTab);
+  };
+
+  // Simpan Edit Pencapaian Kumulatif
+  const handleSaveCumulativeModal = () => {
+    if (!editingCumulativeModal) return;
+    const { store, selectedWeekTab } = editingCumulativeModal;
+    const val = Number(cumulativeInputVal);
+    if (isNaN(val) || val < 0) {
+      showToast('Nominal harus berupa angka valid non-negatif!');
+      return;
+    }
+    const mPrefix = selectedMonth.trim().toUpperCase();
+    const weekKey = `${selectedWeekTab}_${store.storeName}`;
+    const monthWeekKey = `${mPrefix}_${selectedWeekTab}_${store.storeName}`;
+
+    const newCum = {
+      ...customCumulative,
+      [weekKey]: val,
+      [monthWeekKey]: val,
+    };
+    if (selectedWeekTab === selectedWeek) {
+      newCum[store.storeName] = val;
+    }
+
+    setCustomCumulative(newCum);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_CUMULATIVE, JSON.stringify(newCum));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    showToast(`Pencapaian ${selectedWeekTab} toko ${store.storeName} berhasil disimpan: ${formatNumber(val)}!`);
+    setEditingCumulativeModal(null);
+  };
+
+  // Reset Pencapaian Kumulatif ke Formula Otomatis
+  const handleResetCumulativeModal = () => {
+    if (!editingCumulativeModal) return;
+    const { store, selectedWeekTab } = editingCumulativeModal;
+    const mPrefix = selectedMonth.trim().toUpperCase();
+    const weekKey = `${selectedWeekTab}_${store.storeName}`;
+    const monthWeekKey = `${mPrefix}_${selectedWeekTab}_${store.storeName}`;
+
+    const newCum = { ...customCumulative };
+    delete newCum[weekKey];
+    delete newCum[monthWeekKey];
+    if (selectedWeekTab === selectedWeek) {
+      delete newCum[store.storeName];
+    }
+
+    setCustomCumulative(newCum);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_CUMULATIVE, JSON.stringify(newCum));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    showToast(`Pencapaian ${selectedWeekTab} toko ${store.storeName} dikembalikan ke formula otomatis!`);
+    setEditingCumulativeModal(null);
+  };
+
+  // Tambah Kolom Toko Baru
+  const handleAddStoreColumn = () => {
+    if (!newStoreName.trim()) {
+      showToast('Mohon masukkan nama toko!');
+      return;
+    }
+    const sName = newStoreName.trim().toUpperCase();
+    const sLower = sName.toLowerCase();
+
+    // Hapus dari daftar toko yang pernah dihapus jika ada
+    const updatedDeleted = deletedStoreNames.filter((n) => n.trim().toLowerCase() !== sLower);
+    setDeletedStoreNames(updatedDeleted);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_DELETED_STORES, JSON.stringify(updatedDeleted));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    const newStore: WeeklyStoreConfig = {
+      id: `ws-custom-${Date.now()}`,
+      storeName: sName,
+      baName: newBaName.trim().toUpperCase() || 'BA STANDBY',
+      salesName: newSalesName.trim().toUpperCase() || 'ALBERT FERNANDO',
+      trainerName: newTrainerName.trim().toUpperCase() || 'ARA',
+      coverArea: newCoverArea.trim().toUpperCase() || 'PEKANBARU',
+      region: newRegion.trim().toUpperCase() || 'PEKAN BARU',
+      targetMonthly: Number(newTargetMonthly) || 45000000,
+    };
+
+    // Bersihkan duplikat nama jika ada, lalu tambahkan toko baru
+    const updated = [...storesList.filter((s) => s.storeName.trim().toLowerCase() !== sLower), newStore];
+    setStoresList(updated);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_STORES, JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    if (newPerformaVal > 0) {
+      const newPerforma = { ...customPerformaBa, [newStore.storeName]: newPerformaVal };
+      setCustomPerformaBa(newPerforma);
+      try {
+        localStorage.setItem(STORAGE_KEY_WEEKLY_PERFORMA, JSON.stringify(newPerforma));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    if (newCumulativeVal > 0) {
+      const newCum = { ...customCumulative, [newStore.storeName]: newCumulativeVal };
+      setCustomCumulative(newCum);
+      try {
+        localStorage.setItem(STORAGE_KEY_WEEKLY_CUMULATIVE, JSON.stringify(newCum));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+
+    setIsAddingStore(false);
+    showToast(`Kolom toko "${newStore.storeName}" berhasil ditambahkan ke tabel!`);
+  };
+
+  // Buka Modal Kelola & Kurangi Toko
+  const handleOpenManageStoresModal = () => {
+    setWorkingDeletedStores([...deletedStoreNames]);
+    setManageStoresSearch('');
+    setManageStoresSalesFilter('ALL');
+    setManageStoresTab('all');
+    setIsManageStoresModalOpen(true);
+  };
+
+  // Toggle toko dalam modal draft (Centang = Aktif, Uncheck = Dikurangi)
+  const handleToggleStoreInDraft = (storeName: string) => {
+    const sLower = storeName.trim().toLowerCase();
+    const isCurrentlyDeleted = workingDeletedStores.some((n) => n.trim().toLowerCase() === sLower);
+    if (isCurrentlyDeleted) {
+      setWorkingDeletedStores(workingDeletedStores.filter((n) => n.trim().toLowerCase() !== sLower));
+    } else {
+      setWorkingDeletedStores([...workingDeletedStores, sLower]);
+    }
+  };
+
+  // Set status spesifik untuk toko dalam modal draft
+  const handleSetStoreExcludedInDraft = (storeName: string, exclude: boolean) => {
+    const sLower = storeName.trim().toLowerCase();
+    if (exclude) {
+      if (!workingDeletedStores.some((n) => n.trim().toLowerCase() === sLower)) {
+        setWorkingDeletedStores([...workingDeletedStores, sLower]);
+      }
+    } else {
+      setWorkingDeletedStores(workingDeletedStores.filter((n) => n.trim().toLowerCase() !== sLower));
+    }
+  };
+
+  // Bulk: Aktifkan semua toko yang sedang terlihat di modal
+  const handleActivateAllVisible = (storeNames: string[]) => {
+    const visibleSet = new Set(storeNames.map((n) => n.trim().toLowerCase()));
+    setWorkingDeletedStores((prev) => prev.filter((n) => !visibleSet.has(n.trim().toLowerCase())));
+    showToast(`${storeNames.length} toko diset Aktif (Draft). Klik Simpan untuk menerapkan.`);
+  };
+
+  // Bulk: Kurangi semua toko yang sedang terlihat di modal
+  const handleExcludeAllVisible = (storeNames: string[]) => {
+    const toAdd = storeNames.map((n) => n.trim().toLowerCase());
+    setWorkingDeletedStores((prev) => Array.from(new Set([...prev, ...toAdd])));
+    showToast(`${storeNames.length} toko diset Dikurangi (Draft). Klik Simpan untuk menerapkan.`);
+  };
+
+  // SIMPAN & TERAPKAN PERUBAHAN TOKO KE TABEL WEEKLY
+  const handleSaveManageStores = () => {
+    const cleanedDeleted = Array.from(new Set(workingDeletedStores.map((n) => n.trim().toLowerCase())));
+    setDeletedStoreNames(cleanedDeleted);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_DELETED_STORES, JSON.stringify(cleanedDeleted));
+    } catch (e) {
+      console.warn('Failed to save STORAGE_KEY_WEEKLY_DELETED_STORES', e);
+    }
+
+    // Hitung berapa toko yang aktif setelah perubahan
+    const activeCount = allMasterStores.filter(
+      (s) => !cleanedDeleted.includes(s.storeName.trim().toLowerCase())
+    ).length;
+
+    setIsManageStoresModalOpen(false);
+    showToast(`Perubahan berhasil disimpan! Tabel kini menampilkan ${activeCount} kolom toko aktif.`);
+  };
+
+  // Hapus / Kurangi Kolom Toko Langsung (Bisa dipanggil langsung dari header tabel tanpa dialog confirm)
+  const handleDeleteStoreColumn = (storeId: string, storeName: string) => {
+    const sLower = storeName.trim().toLowerCase();
+
+    // 1. Hapus dari storesList
+    const updatedStores = storesList.filter(
+      (s) => s.id !== storeId && s.storeName.trim().toLowerCase() !== sLower
+    );
+    setStoresList(updatedStores);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_STORES, JSON.stringify(updatedStores));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // 2. Tambahkan ke deletedStoreNames agar tidak dihidupkan kembali secara otomatis oleh rekaman Google Sheets
+    const updatedDeleted = Array.from(new Set([...deletedStoreNames, sLower]));
+    setDeletedStoreNames(updatedDeleted);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_DELETED_STORES, JSON.stringify(updatedDeleted));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Sync juga draft working state jika modal sedang terbuka
+    setWorkingDeletedStores((prev) => Array.from(new Set([...prev, sLower])));
+
+    if (editingStore && (editingStore.id === storeId || editingStore.storeName.trim().toLowerCase() === sLower)) {
+      setEditingStore(null);
+    }
+    showToast(`Kolom toko "${storeName}" berhasil dikurangi dari tabel.`);
+  };
+
+  // Pulihkan Toko yang Pernah Dihapus
+  const handleRestoreStore = (storeName: string) => {
+    const sLower = storeName.trim().toLowerCase();
+    const updatedDeleted = deletedStoreNames.filter((n) => n.trim().toLowerCase() !== sLower);
+    setDeletedStoreNames(updatedDeleted);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_DELETED_STORES, JSON.stringify(updatedDeleted));
+    } catch (e) {
+      console.warn(e);
+    }
+
+    setWorkingDeletedStores((prev) => prev.filter((n) => n.trim().toLowerCase() !== sLower));
+
+    // Ambil dari DEFAULT_WEEKLY_STORES jika belum ada di storesList
+    const def = DEFAULT_WEEKLY_STORES.find((s) => s.storeName.trim().toLowerCase() === sLower);
+    if (def && !storesList.some((s) => s.storeName.trim().toLowerCase() === sLower)) {
+      const updated = [...storesList, def];
+      setStoresList(updated);
+      try {
+        localStorage.setItem(STORAGE_KEY_WEEKLY_STORES, JSON.stringify(updated));
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    showToast(`Kolom toko "${storeName}" berhasil dipulihkan kembali ke tabel!`);
+  };
+
+  // Pulihkan Semua Toko
+  const handleRestoreAllStores = () => {
+    setDeletedStoreNames([]);
+    setWorkingDeletedStores([]);
+    try {
+      localStorage.removeItem(STORAGE_KEY_WEEKLY_DELETED_STORES);
+    } catch (e) {}
+    setStoresList(DEFAULT_WEEKLY_STORES);
+    try {
+      localStorage.setItem(STORAGE_KEY_WEEKLY_STORES, JSON.stringify(DEFAULT_WEEKLY_STORES));
+    } catch (e) {}
+    showToast('Seluruh kolom toko berhasil dipulihkan!');
   };
 
   // Save Inline Edit Cell
@@ -1514,11 +2057,13 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
   // Reset to default template snapshot
   const handleResetToDefault = () => {
     setStoresList(DEFAULT_WEEKLY_STORES);
+    setDeletedStoreNames([]);
     setCustomDailyActuals({});
     setCustomPerformaBa({});
     setCustomCumulative({});
     try {
       localStorage.removeItem(STORAGE_KEY_WEEKLY_STORES);
+      localStorage.removeItem(STORAGE_KEY_WEEKLY_DELETED_STORES);
       localStorage.removeItem(STORAGE_KEY_WEEKLY_ACTUALS);
       localStorage.removeItem(STORAGE_KEY_WEEKLY_PERFORMA);
       localStorage.removeItem(STORAGE_KEY_WEEKLY_CUMULATIVE);
@@ -1723,6 +2268,11 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
     return num.toLocaleString('id-ID');
   };
 
+  const formatRupiah = (num: number): string => {
+    if (!num || num === 0) return 'Rp 0';
+    return `Rp ${num.toLocaleString('id-ID')}`;
+  };
+
   return (
     <div className="space-y-4">
       {/* Toast Notification */}
@@ -1884,6 +2434,45 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
               Fit
             </button>
           </div>
+
+          {/* Tambah Kolom Toko Button */}
+          <button
+            onClick={() => {
+              setNewStoreName('');
+              setNewBaName('');
+              setNewSalesName(selectedSales !== 'ALL' ? selectedSales : 'ALBERT FERNANDO');
+              setNewTrainerName(selectedTrainer !== 'ALL' ? selectedTrainer : 'ARA');
+              setNewCoverArea('PEKANBARU');
+              setNewRegion('PEKAN BARU');
+              setNewTargetMonthly(45000000);
+              setNewCumulativeVal(0);
+              setNewPerformaVal(0);
+              setIsAddingStore(true);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs transition-all cursor-pointer"
+            title="Tambah Kolom Toko Baru ke Tabel Weekly Sell Out"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Tambah Toko</span>
+          </button>
+
+          {/* Kurangi / Kelola Kolom Toko Button */}
+          <button
+            onClick={handleOpenManageStoresModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl shadow-xs transition-all cursor-pointer"
+            title="Kurangi atau Kelola Kolom Toko (Hapus / Pulihkan Toko)"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>− Kurangi / Kelola Toko</span>
+            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-rose-200 text-rose-900 font-mono font-bold">
+              {activeStoresList.length}
+            </span>
+            {deletedStoreNames.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-rose-600 text-white font-bold" title={`${deletedStoreNames.length} toko telah dihapus`}>
+                -{deletedStoreNames.length}
+              </span>
+            )}
+          </button>
 
           {/* Reset Template Default Button */}
           <button
@@ -2075,21 +2664,37 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
                 {/* 4. ROW: PENCAPAIAN WEEK BERAPA (CONTOH WEEK 2 [08-14]) */}
                 <tr className="border-b-2 border-slate-700 font-mono text-[9px]">
                   <td className="bg-white font-black text-slate-900 p-1 border-r border-slate-400 whitespace-nowrap">
-                    <div className="flex items-center justify-between">
-                      <span>PENCAPAIAN {weekRangeLabel}</span>
-                      <Edit2 className="w-2.5 h-2.5 text-amber-600" />
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1">
+                        <span>PENCAPAIAN {weekRangeLabel}</span>
+                        <span className="text-[7.5px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                          Rumus Progresif
+                        </span>
+                      </div>
+                      <span title="Klik cell toko untuk edit">
+                        <Edit2 className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                      </span>
                     </div>
                   </td>
-                  {activeStoresList.map((s) => (
-                    <td
-                      key={s.id}
-                      onClick={() => handleOpenEditStore(s)}
-                      className="text-right p-1 border-r border-slate-300 font-bold bg-white text-slate-900 cursor-pointer hover:bg-yellow-50"
-                      title="Klik untuk edit pencapaian kumulatif"
-                    >
-                      {formatNumber(calculationData.storeCumulativeToDate[s.storeName] || 0)}
-                    </td>
-                  ))}
+                  {activeStoresList.map((s) => {
+                    const val = calculationData.storeCumulativeToDate[s.storeName] || 0;
+                    const isCustom = calculationData.isStoreCustomCumulative?.[s.storeName];
+                    return (
+                      <td
+                        key={s.id}
+                        onClick={() => handleOpenCumulativeModal(s)}
+                        className={`text-right p-1 border-r border-slate-300 font-bold cursor-pointer hover:bg-amber-100 hover:text-amber-950 transition-colors ${
+                          isCustom ? 'bg-amber-50 text-amber-900 font-black' : 'bg-white text-slate-900'
+                        }`}
+                        title={`Klik untuk edit Pencapaian Kumulatif ${weekRangeLabel} toko ${s.storeName}${isCustom ? ' (Manual Edit)' : ' (Otomatis Rumus Kumulatif)'}`}
+                      >
+                        <div className="flex items-center justify-end gap-0.5">
+                          {isCustom && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Manual Edit Override" />}
+                          <span>{formatNumber(val)}</span>
+                        </div>
+                      </td>
+                    );
+                  })}
                   <td className="bg-[#000000] text-white font-black text-center p-1 border-r border-slate-700 uppercase text-[8.5px]">
                     PENCAPAIAN {weekRangeLabel}
                   </td>
@@ -2108,16 +2713,29 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
                     <th
                       key={s.id}
                       onClick={() => handleOpenEditStore(s)}
-                      className="p-1 border-r border-slate-700 text-center uppercase cursor-pointer hover:bg-[#7a99cf] transition-colors min-w-[70px]"
-                      title={`${s.storeName} • BA: ${s.baName} • Sales: ${s.salesName} • Trainer: ${s.trainerName}`}
+                      className="p-1 border-r border-slate-700 text-center uppercase cursor-pointer hover:bg-[#7a99cf] transition-colors min-w-[75px] group relative"
+                      title={`${s.storeName} • BA: ${s.baName} • Sales: ${s.salesName} • Trainer: ${s.trainerName} (Klik untuk edit)`}
                     >
-                      <div className="font-black text-slate-950 leading-tight text-[8.5px] max-w-[125px] mx-auto line-clamp-2" title={s.storeName}>
-                        {s.storeName}
+                      <div className="flex items-start justify-between gap-0.5">
+                        <div className="font-black text-slate-950 leading-tight text-[8.5px] max-w-[105px] line-clamp-2 text-left" title={s.storeName}>
+                          {s.storeName}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStoreColumn(s.id, s.storeName);
+                          }}
+                          className="opacity-40 group-hover:opacity-100 hover:text-red-700 hover:bg-red-100/80 p-0.5 rounded cursor-pointer transition-all shrink-0"
+                          title={`Hapus kolom toko ${s.storeName}`}
+                        >
+                          <Trash2 className="w-2.5 h-2.5 text-red-700" />
+                        </button>
                       </div>
-                      <div className="text-[7.5px] font-bold text-slate-900 leading-tight opacity-95 mt-0.5 truncate max-w-[110px] mx-auto">
+                      <div className="text-[7.5px] font-bold text-slate-900 leading-tight opacity-95 mt-0.5 truncate max-w-[110px]">
                         BA: {s.baName}
                       </div>
-                      <div className="text-[6.5px] font-semibold text-slate-700 leading-tight opacity-80 mt-0.5 truncate max-w-[110px] mx-auto">
+                      <div className="text-[6.5px] font-semibold text-slate-700 leading-tight opacity-80 mt-0.5 truncate max-w-[110px]">
                         {s.salesName} ({s.trainerName})
                       </div>
                     </th>
@@ -2446,6 +3064,281 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
         </div>
       </div>
 
+      {/* MODAL: EDIT PENCAPAIAN KUMULATIF PROGRESIF (WEEK 1, 2, 3, 4) */}
+      {editingCumulativeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 text-xs">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Edit Pencapaian Kumulatif Sell Out
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Formula progresif otomatis per week &amp; override manual
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingCumulativeModal(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Store Information Badge */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 mt-4 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nama Toko</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
+                  Sales: {editingCumulativeModal.store.salesName}
+                </span>
+              </div>
+              <div className="text-sm font-black text-slate-900">
+                {editingCumulativeModal.store.storeName}
+              </div>
+              <div className="text-[11px] text-slate-600 flex flex-wrap gap-2 pt-1 border-t border-slate-200 mt-1">
+                <span>BA: <strong>{editingCumulativeModal.store.baName}</strong></span>
+                <span>•</span>
+                <span>Trainer: <strong>{editingCumulativeModal.store.trainerName}</strong></span>
+                <span>•</span>
+                <span>Area: <strong>{editingCumulativeModal.store.coverArea}</strong></span>
+              </div>
+            </div>
+
+            {/* Week Selector Tabs */}
+            <div className="mt-4">
+              <label className="font-bold text-slate-700 block mb-1 text-[11px]">
+                Pilih Periode Week yang Ingin Diedit / Dilihat:
+              </label>
+              <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl">
+                {(['WEEK 1', 'WEEK 2', 'WEEK 3', 'WEEK 4'] as const).map((wTab) => {
+                  const bDown = calculationData.storeWeeklyBreakdowns?.[editingCumulativeModal.store.storeName];
+                  const isTabCustom =
+                    wTab === 'WEEK 1'
+                      ? bDown?.isW1Custom
+                      : wTab === 'WEEK 2'
+                      ? bDown?.isW2Custom
+                      : wTab === 'WEEK 3'
+                      ? bDown?.isW3Custom
+                      : bDown?.isW4Custom;
+
+                  const rangeLabel =
+                    wTab === 'WEEK 1'
+                      ? '01-07'
+                      : wTab === 'WEEK 2'
+                      ? '08-14'
+                      : wTab === 'WEEK 3'
+                      ? '15-21'
+                      : `22-${totalDaysInMonth}`;
+
+                  const isSelected = editingCumulativeModal.selectedWeekTab === wTab;
+                  return (
+                    <button
+                      key={wTab}
+                      type="button"
+                      onClick={() => handleSwitchCumulativeTab(wTab)}
+                      className={`py-2 px-1 rounded-lg text-center transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-600 text-white font-extrabold shadow-xs'
+                          : 'bg-white text-slate-700 hover:bg-slate-200 font-bold'
+                      }`}
+                    >
+                      <div className="text-[10px] leading-tight">{wTab}</div>
+                      <div className={`text-[8.5px] font-mono ${isSelected ? 'text-blue-100' : 'text-slate-500'}`}>
+                        ({rangeLabel})
+                      </div>
+                      {isTabCustom && (
+                        <span className={`inline-block mt-0.5 text-[7px] px-1 rounded font-bold ${
+                          isSelected ? 'bg-amber-300 text-amber-950' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          Manual
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Breakdown Formula Card */}
+            {(() => {
+              const bDown = calculationData.storeWeeklyBreakdowns?.[editingCumulativeModal.store.storeName];
+              if (!bDown) return null;
+              const wTab = editingCumulativeModal.selectedWeekTab;
+              const isTabCustom =
+                wTab === 'WEEK 1'
+                  ? bDown.isW1Custom
+                  : wTab === 'WEEK 2'
+                  ? bDown.isW2Custom
+                  : wTab === 'WEEK 3'
+                  ? bDown.isW3Custom
+                  : bDown.isW4Custom;
+
+              return (
+                <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 mt-3 space-y-2">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-amber-200">
+                    <span className="font-extrabold text-amber-950 text-[11px] flex items-center gap-1.5">
+                      <span>Rincian Formula {wTab}:</span>
+                    </span>
+                    <span
+                      className={`text-[9.5px] px-2 py-0.5 rounded-full font-bold ${
+                        isTabCustom
+                          ? 'bg-amber-200 text-amber-900 border border-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      }`}
+                    >
+                      {isTabCustom ? '• Nilai Manual (Override)' : '✓ Otomatis Sesuai Rumus'}
+                    </span>
+                  </div>
+
+                  {wTab === 'WEEK 1' && (
+                    <div className="space-y-1 text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Total Penjualan Tgl 01 s/d 07:</span>
+                        <strong className="font-mono text-slate-900">{formatRupiah(bDown.w1Actual)}</strong>
+                      </div>
+                      <div className="pt-1.5 border-t border-amber-200/60 flex justify-between font-bold text-slate-900">
+                        <span>Pencapaian Week 1 (01-07):</span>
+                        <span className="font-mono text-blue-700 font-extrabold">{formatRupiah(bDown.w1Pencapaian)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {wTab === 'WEEK 2' && (
+                    <div className="space-y-1 text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Pencapaian Week 1 (01-07):</span>
+                        <strong className="font-mono text-slate-900">{formatRupiah(bDown.w1Pencapaian)}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Total Sell Out Week 2 (08-14):</span>
+                        <strong className="font-mono text-slate-900">+ {formatRupiah(bDown.w2Actual)}</strong>
+                      </div>
+                      <div className="pt-1.5 border-t border-amber-200/60 flex justify-between font-bold text-slate-900">
+                        <span>Hasil Rumus Otomatis (W1 + W2):</span>
+                        <span className="font-mono text-blue-700 font-extrabold">{formatRupiah(bDown.w2Formula)}</span>
+                      </div>
+                      {bDown.isW2Custom && (
+                        <div className="flex justify-between font-bold text-amber-900 pt-1">
+                          <span>Nilai Manual Aktif di Tabel:</span>
+                          <span className="font-mono">{formatRupiah(bDown.w2Pencapaian)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {wTab === 'WEEK 3' && (
+                    <div className="space-y-1 text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Pencapaian Kumulatif Week 2:</span>
+                        <strong className="font-mono text-slate-900">{formatRupiah(bDown.w2Pencapaian)}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Total Sell Out Week 3 (15-21):</span>
+                        <strong className="font-mono text-slate-900">+ {formatRupiah(bDown.w3Actual)}</strong>
+                      </div>
+                      <div className="pt-1.5 border-t border-amber-200/60 flex justify-between font-bold text-slate-900">
+                        <span>Hasil Rumus Otomatis (Pencapaian W2 + W3):</span>
+                        <span className="font-mono text-blue-700 font-extrabold">{formatRupiah(bDown.w3Formula)}</span>
+                      </div>
+                      {bDown.isW3Custom && (
+                        <div className="flex justify-between font-bold text-amber-900 pt-1">
+                          <span>Nilai Manual Aktif di Tabel:</span>
+                          <span className="font-mono">{formatRupiah(bDown.w3Pencapaian)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {wTab === 'WEEK 4' && (
+                    <div className="space-y-1 text-slate-700">
+                      <div className="flex justify-between">
+                        <span>Pencapaian Kumulatif Week 3:</span>
+                        <strong className="font-mono text-slate-900">{formatRupiah(bDown.w3Pencapaian)}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Total Sell Out Week 4 (22-{totalDaysInMonth}):</span>
+                        <strong className="font-mono text-slate-900">+ {formatRupiah(bDown.w4Actual)}</strong>
+                      </div>
+                      <div className="pt-1.5 border-t border-amber-200/60 flex justify-between font-bold text-slate-900">
+                        <span>Hasil Rumus Otomatis (Pencapaian W3 + W4):</span>
+                        <span className="font-mono text-blue-700 font-extrabold">{formatRupiah(bDown.w4Formula)}</span>
+                      </div>
+                      {bDown.isW4Custom && (
+                        <div className="flex justify-between font-bold text-amber-900 pt-1">
+                          <span>Nilai Manual Aktif di Tabel:</span>
+                          <span className="font-mono">{formatRupiah(bDown.w4Pencapaian)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Input Manual Override */}
+            <div className="mt-4 space-y-1.5">
+              <label className="font-bold text-slate-800 block text-xs">
+                Nominal Pencapaian ({editingCumulativeModal.selectedWeekTab}) (Rp):
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="any"
+                  value={cumulativeInputVal}
+                  onChange={(e) => setCumulativeInputVal(Number(e.target.value))}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white font-mono font-bold text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
+                />
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
+                <span>Preview Format Rupiah:</span>
+                <span className="font-mono font-bold text-slate-800">
+                  {formatRupiah(Number(cumulativeInputVal) || 0)}
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-4 mt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleResetCumulativeModal}
+                className="px-3 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 cursor-pointer flex items-center gap-1.5 transition-colors"
+                title="Hapus nilai manual dan kembali gunakan rumus otomatis"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                <span>Gunakan Rumus Otomatis</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingCumulativeModal(null)}
+                  className="px-3.5 py-2 rounded-xl text-slate-600 font-bold hover:bg-slate-100 cursor-pointer transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCumulativeModal}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer flex items-center gap-1.5 shadow-sm transition-colors"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: EDIT STORE TARGET & PERFORMA */}
       {editingStore && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -2467,7 +3360,7 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
                   type="text"
                   value={editStoreName}
                   onChange={(e) => setEditStoreName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold focus:bg-white"
                 />
               </div>
 
@@ -2477,15 +3370,61 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
                   type="text"
                   value={editBaName}
                   onChange={(e) => setEditBaName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold focus:bg-white"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Coveran Sales</label>
+                  <input
+                    type="text"
+                    value={editSalesName}
+                    onChange={(e) => setEditSalesName(e.target.value)}
+                    placeholder="ALBERT FERNANDO"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Trainer</label>
+                  <input
+                    type="text"
+                    value={editTrainerName}
+                    onChange={(e) => setEditTrainerName(e.target.value)}
+                    placeholder="ARA / RATIH / ONLINE"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Area</label>
+                  <input
+                    type="text"
+                    value={editCoverArea}
+                    onChange={(e) => setEditCoverArea(e.target.value)}
+                    placeholder="PEKANBARU"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Region</label>
+                  <input
+                    type="text"
+                    value={editRegion}
+                    onChange={(e) => setEditRegion(e.target.value)}
+                    placeholder="PEKAN BARU"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Target Bulanan (Rp)</label>
                 <input
                   type="number"
-                  step="1000000"
+                  step="any"
                   value={editTargetMonthly}
                   onChange={(e) => setEditTargetMonthly(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold text-blue-900"
@@ -2501,7 +3440,7 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
                 </label>
                 <input
                   type="number"
-                  step="100000"
+                  step="any"
                   value={editCumulativeVal}
                   onChange={(e) => setEditCumulativeVal(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold text-slate-900"
@@ -2514,6 +3453,7 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
                 </label>
                 <input
                   type="number"
+                  step="any"
                   value={editPerformaVal}
                   onChange={(e) => setEditPerformaVal(Number(e.target.value))}
                   className="w-full px-3 py-2 rounded-xl border border-red-200 bg-red-50/50 font-mono font-black text-red-700"
@@ -2524,26 +3464,521 @@ export const ReviewWeeklySellOutBa: React.FC<ReviewWeeklySellOutBaProps> = ({
               </div>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-100 mt-5">
+              <button
+                type="button"
+                onClick={() => handleDeleteStoreColumn(editingStore.id, editingStore.storeName)}
+                className="flex items-center gap-1.5 px-3 py-2 text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 rounded-xl font-bold transition-all cursor-pointer"
+                title="Hapus kolom toko ini dari laporan weekly sell out"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Hapus Kolom Toko</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStore(null)}
+                  className="px-4 py-2 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEditStore}
+                  className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  Simpan Target
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TAMBAH KOLOM TOKO BARU */}
+      {isAddingStore && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 text-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-blue-600" />
+                Tambah Kolom Toko Baru
+              </h3>
+              <button onClick={() => setIsAddingStore(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-500 mt-2">
+              Kolom toko yang ditambahkan akan otomatis muncul di tabel Weekly Sell Out BA dan dapat diedit setiap saat.
+            </p>
+
+            <div className="space-y-3 mt-4">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Nama Toko *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: TOKO CANTIK RIAU"
+                  value={newStoreName}
+                  onChange={(e) => setNewStoreName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Nama Beauty Advisor (BA)</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: SITI NURHALIZA"
+                  value={newBaName}
+                  onChange={(e) => setNewBaName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold focus:bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Coveran Sales</label>
+                  <input
+                    type="text"
+                    value={newSalesName}
+                    onChange={(e) => setNewSalesName(e.target.value)}
+                    placeholder="Contoh: ALBERT FERNANDO"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Trainer</label>
+                  <input
+                    type="text"
+                    value={newTrainerName}
+                    onChange={(e) => setNewTrainerName(e.target.value)}
+                    placeholder="Contoh: ARA / RATIH"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Area</label>
+                  <input
+                    type="text"
+                    value={newCoverArea}
+                    onChange={(e) => setNewCoverArea(e.target.value)}
+                    placeholder="PEKANBARU"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Region</label>
+                  <input
+                    type="text"
+                    value={newRegion}
+                    onChange={(e) => setNewRegion(e.target.value)}
+                    placeholder="PEKAN BARU"
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Target Bulanan (Rp)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={newTargetMonthly}
+                  onChange={(e) => setNewTargetMonthly(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold text-blue-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Kumulatif Awal (Rp)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newCumulativeVal}
+                    onChange={(e) => setNewCumulativeVal(Number(e.target.value))}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Performa Awal (%)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newPerformaVal}
+                    onChange={(e) => setNewPerformaVal(Number(e.target.value))}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 font-mono font-bold text-red-700"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-5">
               <button
                 type="button"
-                onClick={() => setEditingStore(null)}
-                className="px-4 py-2 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl"
+                onClick={() => setIsAddingStore(false)}
+                className="px-4 py-2 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
-                onClick={handleSaveEditStore}
-                className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs flex items-center gap-1.5"
+                onClick={handleAddStoreColumn}
+                className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <Save className="w-3.5 h-3.5" />
-                Simpan Target
+                <Plus className="w-3.5 h-3.5" />
+                Tambah Kolom
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* MODAL: KELOLA & KURANGI KOLOM TOKO */}
+      {isManageStoresModalOpen && (() => {
+        const deletedDraftSet = new Set(workingDeletedStores.map((n) => n.trim().toLowerCase()));
+
+        // Filter master stores based on search, tab, and sales coveran
+        const filteredStores = allMasterStores.filter((s) => {
+          const sLower = s.storeName.trim().toLowerCase();
+          const isDeleted = deletedDraftSet.has(sLower);
+
+          // Tab filter
+          if (manageStoresTab === 'active' && isDeleted) return false;
+          if (manageStoresTab === 'deleted' && !isDeleted) return false;
+
+          // Sales filter
+          if (manageStoresSalesFilter !== 'ALL' && s.salesName.toLowerCase() !== manageStoresSalesFilter.toLowerCase()) {
+            return false;
+          }
+
+          // Search query filter
+          if (manageStoresSearch.trim()) {
+            const q = manageStoresSearch.trim().toLowerCase();
+            const matchName = s.storeName.toLowerCase().includes(q);
+            const matchBa = s.baName.toLowerCase().includes(q);
+            const matchSales = s.salesName.toLowerCase().includes(q);
+            const matchTrainer = s.trainerName.toLowerCase().includes(q);
+            if (!matchName && !matchBa && !matchSales && !matchTrainer) return false;
+          }
+
+          return true;
+        });
+
+        const activeDraftCount = allMasterStores.filter(
+          (s) => !deletedDraftSet.has(s.storeName.trim().toLowerCase())
+        ).length;
+        const deletedDraftCount = allMasterStores.length - activeDraftCount;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl border border-slate-200 text-xs flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="flex items-start justify-between pb-3 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-rose-100 text-rose-700">
+                    <Store className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                      Kelola &amp; Kurangi Kolom Toko Weekly Sell Out
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        {activeDraftCount} Aktif
+                      </span>
+                      {deletedDraftCount > 0 && (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                          {deletedDraftCount} Dikurangi
+                        </span>
+                      )}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Centang (✓) untuk menampilkan kolom toko di tabel, atau uncheck / klik <strong>"Kurangi"</strong> untuk menghapus kolom. Klik tombol <strong className="text-emerald-700">"💾 SIMPAN &amp; TERAPKAN"</strong> untuk menyimpan perubahan.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsManageStoresModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 cursor-pointer"
+                  title="Tutup Modal"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Sub-Filters and Quick Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 mt-3 mb-2.5 shrink-0 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                {/* Tabs */}
+                <div className="flex items-center gap-1 p-0.5 bg-slate-200/70 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setManageStoresTab('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      manageStoresTab === 'all'
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>Semua Toko</span>
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-slate-100 text-slate-700">
+                      {allMasterStores.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManageStoresTab('active')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      manageStoresTab === 'active'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>✓ Kolom Aktif</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      manageStoresTab === 'active' ? 'bg-emerald-800 text-white' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {activeDraftCount}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManageStoresTab('deleted')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      manageStoresTab === 'deleted'
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>✗ Toko Dikurangi</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      manageStoresTab === 'deleted' ? 'bg-rose-800 text-white' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {deletedDraftCount}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Filter Sales Coveran */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-600">Coveran:</span>
+                  <select
+                    value={manageStoresSalesFilter}
+                    onChange={(e) => setManageStoresSalesFilter(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="ALL">Semua Sales</option>
+                    {availableSales.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Search */}
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari toko / BA / sales..."
+                    value={manageStoresSearch}
+                    onChange={(e) => setManageStoresSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-800"
+                  />
+                  {manageStoresSearch && (
+                    <button
+                      onClick={() => setManageStoresSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Action Bulk Toolbar */}
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1 mb-2 shrink-0">
+                <span className="text-[11px] text-slate-500">
+                  Menampilkan <strong>{filteredStores.length}</strong> dari total {allMasterStores.length} toko
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleActivateAllVisible(filteredStores.map((s) => s.storeName))}
+                    className="px-2.5 py-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                    title="Aktifkan semua toko yang sedang tampil"
+                  >
+                    ✓ Tampilkan Semua ({filteredStores.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExcludeAllVisible(filteredStores.map((s) => s.storeName))}
+                    className="px-2.5 py-1 text-[11px] font-bold text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                    title="Kurangi / sembunyikan semua toko yang sedang tampil"
+                  >
+                    − Kurangi Semua ({filteredStores.length})
+                  </button>
+                </div>
+              </div>
+
+              {/* Store List Body */}
+              <div className="overflow-y-auto flex-1 border border-slate-200 rounded-xl divide-y divide-slate-100 bg-slate-50/50">
+                {filteredStores.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs">
+                    Tidak ada toko yang cocok dengan pencarian / filter ini.
+                  </div>
+                ) : (
+                  filteredStores.map((s, idx) => {
+                    const sLower = s.storeName.trim().toLowerCase();
+                    const isExcluded = deletedDraftSet.has(sLower);
+
+                    return (
+                      <div
+                        key={s.id || sLower}
+                        className={`p-3 flex items-center justify-between gap-3 transition-colors ${
+                          isExcluded ? 'bg-rose-50/30 hover:bg-rose-50/60' : 'bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        {/* Checkbox and info */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={!isExcluded}
+                            onChange={() => handleToggleStoreInDraft(s.storeName)}
+                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                            title={isExcluded ? 'Klik untuk mengaktifkan kembali' : 'Klik untuk mengurangi/menyembunyikan'}
+                          />
+                          <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-600 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`font-extrabold text-xs uppercase ${isExcluded ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                {s.storeName}
+                              </span>
+                              {isExcluded ? (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                                  ✗ Dikurangi (Sembunyi)
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  ✓ Aktif di Weekly
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-pink-700 font-bold bg-pink-50 px-1.5 py-0.2 rounded border border-pink-100">
+                                BA: {s.baName}
+                              </span>
+                              <span>•</span>
+                              <span className="text-blue-700 font-semibold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-100">
+                                {s.salesName} ({s.trainerName})
+                              </span>
+                              <span>•</span>
+                              <span className="font-mono text-slate-700 font-bold">
+                                Target: Rp {formatNumber(s.targetMonthly)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions for this specific store */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isExcluded ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSetStoreExcludedInDraft(s.storeName, false)}
+                              className="px-3 py-1.5 text-xs font-bold text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="Tampilkan kembali toko ini di tabel weekly"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>+ Aktifkan Kolom</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSetStoreExcludedInDraft(s.storeName, true)}
+                              className="px-3 py-1.5 text-xs font-bold text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 rounded-lg transition-all cursor-pointer flex items-center gap-1 shadow-2xs"
+                              title="Hapus / kurangi toko ini dari tabel weekly"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>− Kurangi Kolom</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsManageStoresModalOpen(false);
+                              handleOpenEditStore(s);
+                            }}
+                            className="px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 border border-slate-200 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                            title="Edit data BA & target toko"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Modal Footer with Clear SAVE Button */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3.5 border-t border-slate-200 mt-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRestoreAllStores}
+                    className="px-3 py-2 text-xs font-bold text-slate-600 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 border border-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
+                    title="Pulihkan semua kolom toko ke kondisi bawaan default (80 toko)"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Pulihkan Semua Default (80 Toko)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsManageStoresModalOpen(false);
+                      setNewStoreName('');
+                      setNewBaName('');
+                      setIsAddingStore(true);
+                    }}
+                    className="px-3 py-2 text-xs font-bold text-blue-700 hover:text-white bg-blue-50 hover:bg-blue-600 border border-blue-200 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Tambah Toko Baru</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsManageStoresModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl cursor-pointer transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveManageStores}
+                    className="px-5 py-2.5 text-xs sm:text-sm font-black text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    title="Simpan perubahan toko dan segera terapkan ke tabel Weekly Sell Out"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>💾 SIMPAN &amp; TERAPKAN PERUBAHAN ({activeDraftCount} TOKO AKTIF)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* QUICK INLINE EDIT MODAL */}
       {inlineEditCell && (

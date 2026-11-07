@@ -10,6 +10,7 @@ import {
 import { loadKpiSalesData, loadBaIncidents } from './agingAndKpiService';
 import { loadKpiTrainerData } from './kpiTrainerService';
 import { DEFAULT_TRAINERS_DATA } from '../utils/costCalculations';
+import { isFocusProduct } from '../utils/analytics';
 
 export const QUARTER_MONTHS: Record<
   QuarterPeriodKey,
@@ -293,7 +294,7 @@ export function calculateQuarterlySummary(
         const val = r.VALUE || 0;
         item.monthlyActual[qMonthPosition] += val;
 
-        const isFocus = (r.PRODUK_FOCUS || '').toUpperCase() === 'FOCUS';
+        const isFocus = isFocusProduct(r.PRODUK_FOCUS || r);
         if (isFocus) {
           item.monthlyFocusActual[qMonthPosition] += Math.max(0, r.QTY || 1);
         }

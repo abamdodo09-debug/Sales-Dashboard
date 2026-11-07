@@ -35,6 +35,8 @@ import {
   saveKpiSalesData,
   calculateKpiPoints,
   INITIAL_KPI_SALES,
+  SALES_MASTER_6_CONFIG,
+  VALID_KPI_SALES_NAMES,
 } from '../services/agingAndKpiService';
 import { formatRupiah, formatPercent } from '../utils/analytics';
 import * as XLSX from 'xlsx';
@@ -97,12 +99,18 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
     }));
   }, [kpiList]);
 
-  // Unique sales names for history filter
+  // Modal detail rincian toko per sales
+  const [selectedStoreDetailSales, setSelectedStoreDetailSales] = useState<{
+    salesName: string;
+    trainer: string;
+    area: string;
+    stores: string[];
+  } | null>(null);
+
+  // Unique sales names for history filter (strictly the 6 official sales)
   const uniqueSalesNames = useMemo(() => {
-    const set = new Set<string>();
-    kpiList.forEach((item) => set.add(item.salesName));
-    return Array.from(set).sort();
-  }, [kpiList]);
+    return VALID_KPI_SALES_NAMES;
+  }, []);
 
   // -------------------------------------------------------------
   // EDIT / OVERRIDE MODAL STATE
@@ -294,11 +302,16 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
   const handleSaveNew = (e: React.FormEvent) => {
     e.preventDefault();
     const periodUpper = newMonthPeriod.trim().toUpperCase() || 'NOVEMBER 2026';
+    const sNameUpper = newSalesName.trim().toUpperCase();
+    const cfg = SALES_MASTER_6_CONFIG[sNameUpper];
     const newRecord: KpiSalesScorecardItem = {
       id: `kpi-custom-${Date.now()}`,
-      salesName: newSalesName.trim().toUpperCase(),
-      coverArea: newCoverArea.trim().toUpperCase(),
-      spv: newSpv.trim().toUpperCase(),
+      salesName: sNameUpper,
+      coverArea: cfg?.area || newCoverArea.trim().toUpperCase(),
+      spv: cfg?.spv || newSpv.trim().toUpperCase(),
+      trainerCovered: cfg?.trainerCovered || '-',
+      coveredStores: cfg?.coveredStores || [],
+      storeCount: cfg?.coveredStores.length || 0,
       monthPeriod: periodUpper,
       sellOutTarget: newSellOutTarget,
       sellOutActual: newSellOutActual,
@@ -1011,6 +1024,55 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
 
           {/* Main Scorecard Table */}
           <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 shadow-xs">
+            {/* Master 6 Sales & 69 Stores Distribution Strip */}
+            <div className="mb-4 p-3.5 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 rounded-xl border border-indigo-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-600 text-white rounded">
+                    Master Resmi Sheet
+                  </span>
+                  <span className="text-xs font-black text-indigo-950">
+                    Struktur 6 Personil Sales &amp; 69 Outlet Toko (Sinkron Coveran &amp; Trainer)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {VALID_KPI_SALES_NAMES.map((sName) => {
+                    const cfg = SALES_MASTER_6_CONFIG[sName];
+                    return (
+                      <button
+                        key={sName}
+                        type="button"
+                        onClick={() => {
+                          setSelectedStoreDetailSales({
+                            salesName: sName,
+                            trainer: cfg?.trainerCovered || '-',
+                            area: cfg?.area || '-',
+                            stores: cfg?.coveredStores || [],
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold bg-white hover:bg-indigo-600 hover:text-white text-slate-800 border border-slate-200 shadow-xs transition-colors cursor-pointer"
+                        title="Klik untuk melihat daftar toko yang dicover"
+                      >
+                        <span className="font-extrabold">{sName}</span>
+                        <span className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[9px]">
+                          {cfg?.coveredStores.length} tk
+                        </span>
+                        <span className="text-[9px] text-slate-500 hover:text-indigo-100">
+                          ({cfg?.trainerCovered})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-[10px] font-bold text-slate-500 block uppercase">Total Outlet Coveran:</span>
+                <span className="text-xs font-mono font-black text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                  69 Toko Resmi
+                </span>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
@@ -1079,12 +1141,34 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
                           </span>
                         </td>
                         <td className="py-3 px-3">
-                          <div className="font-extrabold text-slate-900">{s.salesName}</div>
+                          <div className="font-extrabold text-slate-900 text-sm">{s.salesName}</div>
                           {s.isManualOverride && (
-                            <span className="text-[10px] text-indigo-600 font-semibold inline-block">
+                            <span className="text-[10px] text-indigo-600 font-semibold block">
                               *Manual Override
                             </span>
                           )}
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                              Trainer: {s.trainerCovered || SALES_MASTER_6_CONFIG[s.salesName]?.trainerCovered || '-'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cfg = SALES_MASTER_6_CONFIG[s.salesName];
+                                setSelectedStoreDetailSales({
+                                  salesName: s.salesName,
+                                  trainer: s.trainerCovered || cfg?.trainerCovered || '-',
+                                  area: s.coverArea || cfg?.area || '-',
+                                  stores: s.coveredStores && s.coveredStores.length > 0 ? s.coveredStores : (cfg?.coveredStores || []),
+                                });
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+                              title="Klik untuk melihat rincian toko yang dicover sales ini"
+                            >
+                              <Building2 className="w-2.5 h-2.5 text-indigo-600" />
+                              <span>{s.storeCount || s.coveredStores?.length || SALES_MASTER_6_CONFIG[s.salesName]?.coveredStores.length || 0} Toko</span>
+                            </button>
+                          </div>
                         </td>
                         <td className="py-3 px-3">
                           <div className="text-slate-800">{s.coverArea}</div>
@@ -2134,15 +2218,30 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
               {/* Identitas Sales & Periode */}
               <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Nama Personil Sales</label>
-                  <input
-                    type="text"
+                  <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Nama Personil Sales (6 Resmi)</label>
+                  <select
                     value={newSalesName}
-                    onChange={(e) => setNewSalesName(e.target.value)}
-                    placeholder="Contoh: ILHAMSYAH"
-                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-bold"
+                    onChange={(e) => {
+                      const selected = e.target.value;
+                      setNewSalesName(selected);
+                      const cfg = SALES_MASTER_6_CONFIG[selected];
+                      if (cfg) {
+                        setNewCoverArea(cfg.area);
+                        setNewSpv(cfg.spv);
+                      }
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white font-bold text-xs"
                     required
-                  />
+                  >
+                    {VALID_KPI_SALES_NAMES.map((sName) => {
+                      const cfg = SALES_MASTER_6_CONFIG[sName];
+                      return (
+                        <option key={sName} value={sName}>
+                          {sName} ({cfg?.coveredStores.length} Toko | {cfg?.trainerCovered})
+                        </option>
+                      );
+                    })}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-0.5">Periode Bulan</label>
@@ -2340,6 +2439,81 @@ export const KpiSalesScorecard: React.FC<KpiSalesScorecardProps> = ({ filters })
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ========================================================= */}
+      {/* MODAL: RINCIAN DAFTAR TOKO COVERAN PER SALES              */}
+      {/* ========================================================= */}
+      {selectedStoreDetailSales && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-6">
+            <div className="flex items-start justify-between pb-3 border-b border-slate-100">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-indigo-100 text-indigo-800 rounded">
+                    Coveran Sales
+                  </span>
+                  <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-violet-100 text-violet-800 rounded">
+                    Trainer: {selectedStoreDetailSales.trainer}
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 mt-1 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-indigo-600" />
+                  {selectedStoreDetailSales.salesName}
+                </h3>
+                <span className="text-xs text-slate-500 font-medium">
+                  Area: {selectedStoreDetailSales.area} &bull; Total {selectedStoreDetailSales.stores.length} Toko Dilayani
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedStoreDetailSales(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="mt-4">
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                <span>Daftar Toko / Outlet Resmi:</span>
+                <span className="font-mono font-bold text-slate-700">
+                  {selectedStoreDetailSales.stores.length} Outlet
+                </span>
+              </div>
+
+              <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1 border border-slate-200 rounded-xl p-2 bg-slate-50">
+                {selectedStoreDetailSales.stores.map((store, sIdx) => (
+                  <div
+                    key={store}
+                    className="flex items-center justify-between p-2 rounded-lg bg-white border border-slate-200 text-xs text-slate-800 shadow-2xs hover:border-indigo-300 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {sIdx + 1}
+                      </span>
+                      <span className="font-bold text-slate-900">{store}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      Aktif
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100">
+              <span className="text-[11px] text-slate-500 italic">
+                *Data coveran sinkron dengan sheet master penjualan &amp; scorecard
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedStoreDetailSales(null)}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-xs cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

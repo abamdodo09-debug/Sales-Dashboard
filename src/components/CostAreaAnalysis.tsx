@@ -921,7 +921,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
               </label>
               <input
                 type="number"
-                step="5000000"
+                step="any"
                 value={defaultSalesTarget}
                 onChange={(e) => setDefaultSalesTarget(Math.max(1, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -937,7 +937,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
               </label>
               <input
                 type="number"
-                step="2500000"
+                step="any"
                 value={defaultBaNonLavojoyTarget}
                 onChange={(e) => setDefaultBaNonLavojoyTarget(Math.max(1, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
@@ -953,7 +953,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
               </label>
               <input
                 type="number"
-                step="1000000"
+                step="any"
                 value={defaultBaLavojoyTarget}
                 onChange={(e) => setDefaultBaLavojoyTarget(Math.max(1, Number(e.target.value)))}
                 className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -1147,7 +1147,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                   <span>
                     <strong>Non-Lavojoy (Y.O.U, bnb, dazzle me, glamfix, dll):</strong>
                     <br />• ≥ 120%: Pokok <strong>Rp 3.900.000</strong> + Insentif <strong>2%</strong>
-                    <br />• 100% - 119%: Pokok <strong>Rp 3.900.000</strong> + Insentif <strong>1%</strong>
+                    <br />• 100% - 119%: Pokok <strong>Rp 3.900.000</strong> + Insentif <strong>2%</strong>
                     <br />• 70% - 99%: Gaji flat <strong>Rp 2.925.000</strong>
                     <br />• Rp 1 Jt - 25 Jt (&lt;70%): Gaji flat <strong>Rp 2.000.000</strong> | &lt;1 Jt: <strong>Rp 0</strong>
                   </span>
@@ -1615,7 +1615,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 Rincian Estimasi Gaji &amp; Insentif BA (1 BA Multi-Brand &amp; Skema Lavojoy 4%)
               </h3>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Non-Lavojoy: ≥120% (2%+3.9Jt) | 100-119% (1%+3.9Jt) | 70-99% (2.925Jt) | 1-25Jt (2Jt) + Khusus Lavojoy: 4% jika capai ≥ 100%
+                Non-Lavojoy: ≥120% (2%+3.9Jt) | 100-119% (2%+3.9Jt) | 70-99% (2.925Jt) | 1-25Jt (2Jt) + Khusus Lavojoy: 4% jika capai ≥ 100%
               </p>
             </div>
             <div className="text-xs text-slate-500 font-mono">
@@ -2286,7 +2286,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Non-Lavojoy (Rp)</label>
                       <input
                         type="number"
-                        step="1000000"
+                        step="any"
                         value={simBaNonLavojoyTarget}
                         onChange={(e) => setSimBaNonLavojoyTarget(Math.max(1, Number(e.target.value)))}
                         className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300"
@@ -2296,7 +2296,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Realisasi Non-Lavojoy (Rp)</label>
                       <input
                         type="number"
-                        step="1000000"
+                        step="any"
                         value={simBaNonLavojoyActual}
                         onChange={(e) => setSimBaNonLavojoyActual(Math.max(0, Number(e.target.value)))}
                         className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300"
@@ -2310,7 +2310,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Lavojoy (Rp)</label>
                       <input
                         type="number"
-                        step="500000"
+                        step="any"
                         value={simBaLavojoyTarget}
                         onChange={(e) => setSimBaLavojoyTarget(Math.max(1, Number(e.target.value)))}
                         className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300"
@@ -2320,7 +2320,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                       <label className="text-[11px] font-bold text-slate-700 block mb-1">Realisasi Lavojoy (Rp)</label>
                       <input
                         type="number"
-                        step="500000"
+                        step="any"
                         value={simBaLavojoyActual}
                         onChange={(e) => setSimBaLavojoyActual(Math.max(0, Number(e.target.value)))}
                         className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300"
@@ -2387,7 +2387,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                     </label>
                     <input
                       type="number"
-                      step="1000000"
+                      step="any"
                       value={simTarget}
                       onChange={(e) => setSimTarget(Math.max(1, Number(e.target.value)))}
                       className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -2399,7 +2399,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                     </label>
                     <input
                       type="number"
-                      step="1000000"
+                      step="any"
                       value={simActual}
                       onChange={(e) => setSimActual(Math.max(0, Number(e.target.value)))}
                       className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -2454,7 +2454,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                     </label>
                     <input
                       type="number"
-                      step="50"
+                      step="any"
                       value={simTrainerFocusTarget}
                       onChange={(e) => setSimTrainerFocusTarget(Math.max(1, Number(e.target.value)))}
                       className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -2466,7 +2466,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                     </label>
                     <input
                       type="number"
-                      step="50"
+                      step="any"
                       value={simTrainerFocusActual}
                       onChange={(e) => setSimTrainerFocusActual(Math.max(0, Number(e.target.value)))}
                       className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -2588,7 +2588,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="1000000"
+                  step="any"
                   value={editBaNonLavojoyTarget}
                   onChange={(e) => setEditBaNonLavojoyTarget(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
@@ -2604,7 +2604,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="500000"
+                  step="any"
                   value={editBaLavojoyTarget}
                   onChange={(e) => setEditBaLavojoyTarget(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -2659,7 +2659,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="5000000"
+                  step="any"
                   value={editSalesTarget}
                   onChange={(e) => setEditSalesTarget(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -2672,7 +2672,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="500000"
+                  step="any"
                   value={editSalesBonus}
                   onChange={(e) => setEditSalesBonus(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
@@ -2688,7 +2688,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="300000"
+                  step="any"
                   value={editSalesPenalty}
                   onChange={(e) => setEditSalesPenalty(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
@@ -2750,7 +2750,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="50"
+                  step="any"
                   value={editTrainerFocusTarget}
                   onChange={(e) => setEditTrainerFocusTarget(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -2763,7 +2763,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                 </label>
                 <input
                   type="number"
-                  step="50"
+                  step="any"
                   value={editTrainerFocusActual}
                   onChange={(e) => setEditTrainerFocusActual(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -2780,7 +2780,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                   </label>
                   <input
                     type="number"
-                    step="100000"
+                    step="any"
                     value={editTrainerIncentive ?? 0}
                     onChange={(e) => setEditTrainerIncentive(Math.max(0, Number(e.target.value)))}
                     className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
@@ -2794,7 +2794,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                   </label>
                   <input
                     type="number"
-                    step="100000"
+                    step="any"
                     value={editTrainerPenalty ?? 0}
                     onChange={(e) => setEditTrainerPenalty(Math.max(0, Number(e.target.value)))}
                     className="w-full px-3 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-rose-500"
@@ -2864,7 +2864,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                     </label>
                     <input
                       type="number"
-                      step="100000"
+                      step="any"
                       value={editTrainerKpiIncentive ?? 0}
                       onChange={(e) => setEditTrainerKpiIncentive(Math.max(0, Number(e.target.value)))}
                       className="w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
@@ -2876,7 +2876,7 @@ export const CostAreaAnalysis: React.FC<CostAreaAnalysisProps> = ({ records, fil
                     </label>
                     <input
                       type="number"
-                      step="100000"
+                      step="any"
                       value={editTrainerKpiPenalty ?? 0}
                       onChange={(e) => setEditTrainerKpiPenalty(Math.max(0, Number(e.target.value)))}
                       className="w-full px-2.5 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-rose-500"

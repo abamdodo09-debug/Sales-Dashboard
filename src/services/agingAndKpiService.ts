@@ -6,11 +6,12 @@ import {
   BaPunishmentSummaryItem,
   BaNihilIncidentRecord,
   AgingCategory,
+  TransactionRecord,
 } from '../types/dashboard';
 
 // Storage keys
 const STORE_INVOICES_KEY = 'salespro_store_invoices_v2';
-const KPI_SALES_OVERRIDES_KEY = 'salespro_kpi_sales_overrides_v2';
+const KPI_SALES_OVERRIDES_KEY = 'salespro_kpi_sales_overrides_v7';
 const BA_PUNISHMENT_KEY = 'salespro_ba_punishment_v2';
 
 // -------------------------------------------------------------
@@ -248,6 +249,201 @@ export const INITIAL_INVOICES: StoreInvoiceBillItem[] = [
     notes: 'Pelunasan terlambat 30 hari dari jatuh tempo.',
   },
 ];
+
+export function extractInvoicesFromRecords(records: TransactionRecord[]): StoreInvoiceBillItem[] {
+  if (!records || records.length === 0) return [];
+
+  // Filter sell in records (Distributor taking orders / sell in)
+  const sellInRecords = records.filter((r) => {
+    const ket = (r.KET || '').trim().toUpperCase();
+    return (
+      ket.includes('SELL IN') ||
+      ket.includes('SELL-IN') ||
+      ket.includes('TAKING ORDER') ||
+      ket.includes('ORDER') ||
+      ket.includes('DISTRIBUTOR') ||
+      ket === 'IN'
+    );
+  });
+
+  if (sellInRecords.length === 0) return [];
+
+  // Retrieve stored override statuses (isPaid, paymentDate, dispensation, notes)
+  const storedOverridesMap = new Map<string, Partial<StoreInvoiceBillItem>>();
+  try {
+    const raw = localStorage.getItem(STORE_INVOICES_KEY);
+    if (raw) {
+      const parsed: StoreInvoiceBillItem[] = JSON.parse(raw);
+      parsed.forEach((item) => {
+        if (item.invoiceNumber) storedOverridesMap.set(item.invoiceNumber, item);
+        if (item.id) storedOverridesMap.set(item.id, item);
+        const compositeKey = `${item.storeName}_${item.sellInDate}_${item.salesName}`;
+        storedOverridesMap.set(compositeKey, item);
+      });
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Group by (storeName + '|' + normalizedDate + '|' + salesName)
+  // so each store order on that date forms a single invoice with the exact total Sell In amount
+  const invoiceGroups = new Map<
+    string,
+    {
+      storeName: string;
+      coverArea: string;
+      region: string;
+      salesName: string;
+      spvName: string;
+      sellInDate: string;
+      dueDate: string;
+      amount: number;
+      brandCategories: Set<string>;
+      rawIds: string[];
+    }
+  >();
+
+  sellInRecords.forEach((r, idx) => {
+    const store = (r.NAMA_STORE || 'STORE UNKNOWN').trim();
+    const sales = (r.SALES || 'SALES REGULER').trim();
+    const spv = (r.SPV || 'WIDODO').trim();
+    const area = (r.COVER_AREA || 'AREA BARU').trim();
+    const region = (r.REGION || 'PEKAN BARU').trim();
+    const rawDate = (r.TANGGAL || '').trim();
+
+    // Normalize date to YYYY-MM-DD
+    let normalizedDate = '';
+    if (rawDate) {
+      if (rawDate.includes('/')) {
+        const parts = rawDate.split('/');
+        if (parts.length === 3) {
+          const p0 = parseInt(parts[0], 10);
+          const p1 = parseInt(parts[1], 10);
+          const p2 = parseInt(parts[2], 10);
+          const year = p2 < 100 ? 2000 + p2 : p2;
+          const month = String(p0).padStart(2, '0');
+          const day = String(p1).padStart(2, '0');
+          normalizedDate = `${year}-${month}-${day}`;
+        }
+      } else if (rawDate.includes('-')) {
+        normalizedDate = rawDate.slice(0, 10);
+      }
+    }
+
+    if (!normalizedDate) {
+      const monthNames = [
+        'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
+        'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
+      ];
+      const mIdx = monthNames.indexOf((r.BULAN || '').toUpperCase());
+      const month = String(mIdx >= 0 ? mIdx + 1 : 10).padStart(2, '0');
+      const year = r.TAHUN || 2026;
+      normalizedDate = `${year}-${month}-15`;
+    }
+
+    const groupKey = `${store}|${normalizedDate}|${sales}`;
+
+    if (!invoiceGroups.has(groupKey)) {
+      const d = new Date(normalizedDate);
+      const dueTime = isNaN(d.getTime()) ? new Date().getTime() : d.getTime() + 30 * 24 * 60 * 60 * 1000;
+      const dueDate = new Date(dueTime).toISOString().slice(0, 10);
+
+      invoiceGroups.set(groupKey, {
+        storeName: store,
+        coverArea: area,
+        region,
+        salesName: sales,
+        spvName: spv,
+        sellInDate: normalizedDate,
+        dueDate,
+        amount: 0,
+        brandCategories: new Set(),
+        rawIds: [],
+      });
+    }
+
+    const grp = invoiceGroups.get(groupKey)!;
+    grp.amount += Math.max(0, r.VALUE || 0);
+    if (r.BRAND) grp.brandCategories.add(r.BRAND);
+    grp.rawIds.push(r.id || `row-${idx}`);
+  });
+
+  // Convert groups to StoreInvoiceBillItem[]
+  let invoiceSeq = 1;
+  const result: StoreInvoiceBillItem[] = [];
+
+  invoiceGroups.forEach((grp) => {
+    const dateParts = grp.sellInDate.split('-');
+    const yearStr = dateParts[0] || '2026';
+    const monthStr = dateParts[1] || '10';
+    const invNumber = `INV/${yearStr}/${monthStr}/${String(invoiceSeq).padStart(4, '0')}`;
+    const invoiceId = `sheet-inv-${yearStr}-${monthStr}-${invoiceSeq}`;
+    invoiceSeq++;
+
+    const compositeKey = `${grp.storeName}_${grp.sellInDate}_${grp.salesName}`;
+    const existing =
+      storedOverridesMap.get(compositeKey) ||
+      storedOverridesMap.get(invNumber) ||
+      storedOverridesMap.get(invoiceId);
+
+    const isPaid = existing?.isPaid ?? false;
+    const paymentDate = existing?.paymentDate;
+    const invoiceTime = new Date(grp.sellInDate).getTime();
+    const refTime = isPaid && paymentDate ? new Date(paymentDate).getTime() : new Date().getTime();
+    const agingDays = isNaN(invoiceTime) ? 15 : Math.max(0, Math.floor((refTime - invoiceTime) / (1000 * 60 * 60 * 24)));
+    const { category, actionRequired } = determineAgingCategoryAndAction(agingDays);
+
+    const brandsStr = Array.from(grp.brandCategories).join(', ') || 'Multi-Brand';
+
+    result.push({
+      id: invoiceId,
+      invoiceNumber: existing?.invoiceNumber || invNumber,
+      storeName: grp.storeName,
+      coverArea: grp.coverArea,
+      region: grp.region,
+      salesName: grp.salesName,
+      spvName: grp.spvName || 'WIDODO',
+      sellInDate: grp.sellInDate,
+      dueDate: grp.dueDate,
+      paymentDate: existing?.paymentDate,
+      isPaid,
+      amount: grp.amount,
+      brandCategory: brandsStr,
+      agingDays,
+      agingCategory: category,
+      actionRequired: isPaid ? 'LUNAS' : actionRequired,
+      notes: existing?.notes || `Faktur Sell In otomatis dari Google Sheet (${grp.rawIds.length} item transaksi)`,
+      dispensationGranted: existing?.dispensationGranted,
+      dispensationReason: existing?.dispensationReason,
+    });
+  });
+
+  return result.sort((a, b) => {
+    if (!a.isPaid && b.isPaid) return -1;
+    if (a.isPaid && !b.isPaid) return 1;
+    return b.agingDays - a.agingDays;
+  });
+}
+
+export function loadStoreBillsWithRecords(records?: TransactionRecord[]): StoreInvoiceBillItem[] {
+  if (records && records.length > 0) {
+    const sheetInvoices = extractInvoicesFromRecords(records);
+    if (sheetInvoices.length > 0) {
+      try {
+        const raw = localStorage.getItem(STORE_INVOICES_KEY);
+        if (raw) {
+          const parsed: StoreInvoiceBillItem[] = JSON.parse(raw);
+          const manualOnly = parsed.filter((p) => p.id && p.id.startsWith('manual-inv-'));
+          return [...manualOnly, ...sheetInvoices];
+        }
+      } catch (e) {
+        // ignore
+      }
+      return sheetInvoices;
+    }
+  }
+  return loadStoreBills();
+}
 
 export function loadStoreBills(): StoreInvoiceBillItem[] {
   try {
@@ -544,723 +740,45 @@ export function calculateKpiPoints(input: {
   };
 }
 
-export const INITIAL_KPI_SALES: KpiSalesScorecardItem[] = [
-  // ================= OKTOBER 2026 =================
-  {
-    id: 'kpi-2026-10-01',
-    salesName: 'ILHAMSYAH',
-    coverArea: 'AREA BARU',
-    spv: 'WIDODO',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 95000000,
-    sellOutActual: 104500000,
-    sellOutAchievementPct: 110.0,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 96,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 93,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 385000,
-    baBonus: 1000000,
-    baPenalty: 0,
-    tagihanPenalty: 45600,
-    finalTakeHomePay: 4900000 + 385000 + 1000000 + 1000000 - 45600,
-  },
-  {
-    id: 'kpi-2026-10-02',
-    salesName: 'BUDI SANTOSO',
-    coverArea: 'AREA BARU',
-    spv: 'WIDODO',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 80000000,
-    sellOutActual: 82000000,
-    sellOutAchievementPct: 102.5,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 92,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 100,
-    pointBaStockOpname: 5,
-    pointMonitoringBa: 10,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 95,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 275000,
-    baBonus: 500000,
-    baPenalty: 0,
-    tagihanPenalty: 17500,
-    finalTakeHomePay: 4900000 + 275000 + 500000 + 1000000 - 17500,
-  },
-  {
-    id: 'kpi-2026-10-03',
-    salesName: 'LUAR KOTA',
-    coverArea: 'LUAR KOTA',
-    spv: 'WIDODO',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 70000000,
-    sellOutActual: 51000000,
-    sellOutAchievementPct: 72.8,
-    pointSellOut: 25,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 45,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 80,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 80,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 80,
-    pointBufferStock: 5,
-    totalScore: 71,
-    grade: 'C',
-    kpiIncentive: 0,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 0,
-    baBonus: 0,
-    baPenalty: 300000,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 - 300000,
-  },
-  {
-    id: 'kpi-2026-10-04',
-    salesName: 'MAYA SARI',
-    coverArea: 'AREA BARU',
-    spv: 'HENDRA GUNAWAN',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 85000000,
-    sellOutActual: 88500000,
-    sellOutAchievementPct: 104.1,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 95,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 100,
-    pointBaStockOpname: 5,
-    pointMonitoringBa: 10,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 95,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 310000,
-    baBonus: 500000,
-    baPenalty: 0,
-    tagihanPenalty: 200000,
-    finalTakeHomePay: 4900000 + 310000 + 500000 + 1000000 - 200000,
-  },
-  {
-    id: 'kpi-2026-10-05',
-    salesName: 'EKO PRASETYO',
-    coverArea: 'LUAR KOTA',
-    spv: 'HENDRA GUNAWAN',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 60000000,
-    sellOutActual: 38000000,
-    sellOutAchievementPct: 63.3,
-    pointSellOut: 20,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 22,
-    pointKunjungan: 3,
-    baReportWeeklyPct: 70,
-    pointBaReportWeekly: 2,
-    baStockOpnameAppPct: 70,
-    pointBaStockOpname: 2,
-    pointMonitoringBa: 4,
-    storesUsingBufferAppPct: 75,
-    pointBufferStock: 3,
-    totalScore: 55,
-    grade: 'D',
-    kpiIncentive: 0,
-    kpiPenalty: 300000,
-    hasSp1: true,
-    baseSalary: 4900000,
-    sellInIncentive: 0,
-    baBonus: 0,
-    baPenalty: 300000,
-    tagihanPenalty: 26400,
-    finalTakeHomePay: 4900000 - 300000 - 300000 - 26400,
-  },
-  {
-    id: 'kpi-2026-10-06',
-    salesName: 'RINA WATI',
-    coverArea: 'AREA BARU',
-    spv: 'SISKA MELINDA',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 110000000,
-    sellOutActual: 122000000,
-    sellOutAchievementPct: 110.9,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 98,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 100,
-    pointBaStockOpname: 5,
-    pointMonitoringBa: 10,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 100,
-    grade: 'A',
-    kpiIncentive: 2000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 420000,
-    baBonus: 1000000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 420000 + 1000000 + 2000000,
-  },
-  {
-    id: 'kpi-2026-10-07',
-    salesName: 'ANDI WIJAYA',
-    coverArea: 'LUAR KOTA',
-    spv: 'SISKA MELINDA',
-    monthPeriod: 'OKTOBER 2026',
-    sellOutTarget: 75000000,
-    sellOutActual: 62000000,
-    sellOutAchievementPct: 82.6,
-    pointSellOut: 30,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 65,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 90,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 85,
-    pointBufferStock: 5,
-    totalScore: 76,
-    grade: 'C',
-    kpiIncentive: 0,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 160000,
-    baBonus: 0,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 160000,
-  },
-
-  // ================= SEPTEMBER 2026 =================
-  {
-    id: 'kpi-2026-09-01',
-    salesName: 'ILHAMSYAH',
-    coverArea: 'AREA BARU',
-    spv: 'WIDODO',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 90000000,
-    sellOutActual: 99000000,
-    sellOutAchievementPct: 110.0,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 94,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 95,
-    pointBufferStock: 5,
-    totalScore: 93,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 360000,
-    baBonus: 1000000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 360000 + 1000000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-09-02',
-    salesName: 'BUDI SANTOSO',
-    coverArea: 'AREA BARU',
-    spv: 'WIDODO',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 75000000,
-    sellOutActual: 78000000,
-    sellOutAchievementPct: 104.0,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 91,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 98,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 260000,
-    baBonus: 500000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 260000 + 500000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-09-03',
-    salesName: 'LUAR KOTA',
-    coverArea: 'LUAR KOTA',
-    spv: 'WIDODO',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 65000000,
-    sellOutActual: 53000000,
-    sellOutAchievementPct: 81.5,
-    pointSellOut: 30,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 50,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 85,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 80,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 85,
-    pointBufferStock: 5,
-    totalScore: 71,
-    grade: 'C',
-    kpiIncentive: 0,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 0,
-    baBonus: 0,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000,
-  },
-  {
-    id: 'kpi-2026-09-04',
-    salesName: 'MAYA SARI',
-    coverArea: 'AREA BARU',
-    spv: 'HENDRA GUNAWAN',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 80000000,
-    sellOutActual: 84000000,
-    sellOutAchievementPct: 105.0,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 92,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 95,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 98,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 290000,
-    baBonus: 500000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 290000 + 500000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-09-05',
-    salesName: 'EKO PRASETYO',
-    coverArea: 'LUAR KOTA',
-    spv: 'HENDRA GUNAWAN',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 55000000,
-    sellOutActual: 42000000,
-    sellOutAchievementPct: 76.3,
-    pointSellOut: 25,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 40,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 85,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 85,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 80,
-    pointBufferStock: 5,
-    totalScore: 66,
-    grade: 'D',
-    kpiIncentive: 0,
-    kpiPenalty: 300000,
-    hasSp1: true,
-    baseSalary: 4900000,
-    sellInIncentive: 0,
-    baBonus: 0,
-    baPenalty: 0,
-    tagihanPenalty: 22000,
-    finalTakeHomePay: 4900000 - 300000 - 22000,
-  },
-  {
-    id: 'kpi-2026-09-06',
-    salesName: 'RINA WATI',
-    coverArea: 'AREA BARU',
-    spv: 'SISKA MELINDA',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 100000000,
-    sellOutActual: 115000000,
-    sellOutAchievementPct: 115.0,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 96,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 100,
-    pointBaStockOpname: 5,
-    pointMonitoringBa: 10,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 100,
-    grade: 'A',
-    kpiIncentive: 2000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 395000,
-    baBonus: 1000000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 395000 + 1000000 + 2000000,
-  },
-  {
-    id: 'kpi-2026-09-07',
-    salesName: 'ANDI WIJAYA',
-    coverArea: 'LUAR KOTA',
-    spv: 'SISKA MELINDA',
-    monthPeriod: 'SEPTEMBER 2026',
-    sellOutTarget: 70000000,
-    sellOutActual: 65000000,
-    sellOutAchievementPct: 92.8,
-    pointSellOut: 30,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 70,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 90,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 90,
-    pointBufferStock: 5,
-    totalScore: 76,
-    grade: 'C',
-    kpiIncentive: 0,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 170000,
-    baBonus: 0,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 170000,
-  },
-
-  // ================= AGUSTUS 2026 =================
-  {
-    id: 'kpi-2026-08-01',
-    salesName: 'ILHAMSYAH',
-    coverArea: 'AREA BARU',
-    spv: 'WIDODO',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 85000000,
-    sellOutActual: 92000000,
-    sellOutAchievementPct: 108.2,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 95,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 90,
-    pointBufferStock: 5,
-    totalScore: 93,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 320000,
-    baBonus: 1000000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 320000 + 1000000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-08-02',
-    salesName: 'BUDI SANTOSO',
-    coverArea: 'AREA BARU',
-    spv: 'WIDODO',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 70000000,
-    sellOutActual: 71000000,
-    sellOutAchievementPct: 101.4,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 90,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 90,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 90,
-    pointBufferStock: 5,
-    totalScore: 91,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 230000,
-    baBonus: 500000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 230000 + 500000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-08-03',
-    salesName: 'LUAR KOTA',
-    coverArea: 'LUAR KOTA',
-    spv: 'WIDODO',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 60000000,
-    sellOutActual: 40000000,
-    sellOutAchievementPct: 66.6,
-    pointSellOut: 20,
-    overdueStoresUp45Count: 1,
-    pointTagihan45H: 25,
-    visitLogsCount: 28,
-    pointKunjungan: 3,
-    baReportWeeklyPct: 80,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 80,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 80,
-    pointBufferStock: 5,
-    totalScore: 59,
-    grade: 'D',
-    kpiIncentive: 0,
-    kpiPenalty: 300000,
-    hasSp1: true,
-    baseSalary: 4900000,
-    sellInIncentive: 0,
-    baBonus: 0,
-    baPenalty: 300000,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 - 300000 - 300000,
-  },
-  {
-    id: 'kpi-2026-08-04',
-    salesName: 'MAYA SARI',
-    coverArea: 'AREA BARU',
-    spv: 'HENDRA GUNAWAN',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 75000000,
-    sellOutActual: 79000000,
-    sellOutAchievementPct: 105.3,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 94,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 95,
-    pointBufferStock: 5,
-    totalScore: 93,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 270000,
-    baBonus: 500000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 270000 + 500000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-08-05',
-    salesName: 'EKO PRASETYO',
-    coverArea: 'LUAR KOTA',
-    spv: 'HENDRA GUNAWAN',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 50000000,
-    sellOutActual: 41000000,
-    sellOutAchievementPct: 82.0,
-    pointSellOut: 30,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 60,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 90,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 85,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 90,
-    pointBufferStock: 5,
-    totalScore: 76,
-    grade: 'C',
-    kpiIncentive: 0,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 140000,
-    baBonus: 0,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 140000,
-  },
-  {
-    id: 'kpi-2026-08-06',
-    salesName: 'RINA WATI',
-    coverArea: 'AREA BARU',
-    spv: 'SISKA MELINDA',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 95000000,
-    sellOutActual: 105000000,
-    sellOutAchievementPct: 110.5,
-    pointSellOut: 40,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 97,
-    pointKunjungan: 10,
-    baReportWeeklyPct: 100,
-    pointBaReportWeekly: 5,
-    baStockOpnameAppPct: 95,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 8,
-    storesUsingBufferAppPct: 100,
-    pointBufferStock: 10,
-    totalScore: 98,
-    grade: 'A',
-    kpiIncentive: 1000000,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 370000,
-    baBonus: 1000000,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 370000 + 1000000 + 1000000,
-  },
-  {
-    id: 'kpi-2026-08-07',
-    salesName: 'ANDI WIJAYA',
-    coverArea: 'LUAR KOTA',
-    spv: 'SISKA MELINDA',
-    monthPeriod: 'AGUSTUS 2026',
-    sellOutTarget: 65000000,
-    sellOutActual: 58000000,
-    sellOutAchievementPct: 89.2,
-    pointSellOut: 30,
-    overdueStoresUp45Count: 0,
-    pointTagihan45H: 30,
-    visitLogsCount: 72,
-    pointKunjungan: 5,
-    baReportWeeklyPct: 90,
-    pointBaReportWeekly: 3,
-    baStockOpnameAppPct: 90,
-    pointBaStockOpname: 3,
-    pointMonitoringBa: 6,
-    storesUsingBufferAppPct: 90,
-    pointBufferStock: 5,
-    totalScore: 76,
-    grade: 'C',
-    kpiIncentive: 0,
-    kpiPenalty: 0,
-    hasSp1: false,
-    baseSalary: 4900000,
-    sellInIncentive: 150000,
-    baBonus: 0,
-    baPenalty: 0,
-    tagihanPenalty: 0,
-    finalTakeHomePay: 4900000 + 150000,
-  },
-];
+export {
+  SALES_MASTER_6_CONFIG,
+  VALID_KPI_SALES_NAMES,
+  INITIAL_KPI_SALES,
+} from './kpiSalesData';
+export type { SalesCoverConfig } from './kpiSalesData';
+import {
+  SALES_MASTER_6_CONFIG,
+  VALID_KPI_SALES_NAMES,
+  INITIAL_KPI_SALES,
+} from './kpiSalesData';
 
 export function loadKpiSalesData(): KpiSalesScorecardItem[] {
   try {
     const raw = localStorage.getItem(KPI_SALES_OVERRIDES_KEY);
     if (raw) {
       const parsed: KpiSalesScorecardItem[] = JSON.parse(raw);
-      // Ensure historical months from INITIAL_KPI_SALES are included if not yet in storage
-      const existingKeySet = new Set(parsed.map((p) => `${p.salesName}_${p.monthPeriod}`.toUpperCase()));
+      // Strictly retain only the 6 official sales representatives
+      const validFiltered = parsed
+        .filter((item) => VALID_KPI_SALES_NAMES.includes(item.salesName))
+        .map((item) => {
+          const cfg = SALES_MASTER_6_CONFIG[item.salesName];
+          return {
+            ...item,
+            trainerCovered: item.trainerCovered || cfg?.trainerCovered || '-',
+            coveredStores: item.coveredStores && item.coveredStores.length > 0 ? item.coveredStores : (cfg?.coveredStores || []),
+            storeCount: item.storeCount || item.coveredStores?.length || cfg?.coveredStores.length || 0,
+          };
+        });
+
+      // Ensure historical months from INITIAL_KPI_SALES are included
+      const existingKeySet = new Set(validFiltered.map((p) => (p.salesName + '_' + p.monthPeriod).toUpperCase()));
       const missing = INITIAL_KPI_SALES.filter(
-        (init) => !existingKeySet.has(`${init.salesName}_${init.monthPeriod}`.toUpperCase())
+        (init) => !existingKeySet.has((init.salesName + '_' + init.monthPeriod).toUpperCase())
       );
-      if (missing.length > 0) {
-        const merged = [...parsed, ...missing];
-        localStorage.setItem(KPI_SALES_OVERRIDES_KEY, JSON.stringify(merged));
-        return merged;
-      }
-      return parsed;
+
+      const merged = missing.length > 0 ? [...validFiltered, ...missing] : validFiltered;
+      localStorage.setItem(KPI_SALES_OVERRIDES_KEY, JSON.stringify(merged));
+      return merged;
     }
   } catch (e) {
     console.warn('Failed to load KPI sales data from localStorage', e);
@@ -1270,7 +788,8 @@ export function loadKpiSalesData(): KpiSalesScorecardItem[] {
 
 export function saveKpiSalesData(items: KpiSalesScorecardItem[]): void {
   try {
-    localStorage.setItem(KPI_SALES_OVERRIDES_KEY, JSON.stringify(items));
+    const onlyValid = items.filter((item) => VALID_KPI_SALES_NAMES.includes(item.salesName));
+    localStorage.setItem(KPI_SALES_OVERRIDES_KEY, JSON.stringify(onlyValid));
   } catch (e) {
     console.warn('Failed to save KPI sales data to localStorage', e);
   }
@@ -1473,6 +992,7 @@ export function calculateBaPunishmentSummary(
       brand: ba.brand,
       totalNihilDays,
       totalOffDays,
+      noSellDays: totalNihilDays,
       totalDendaNominal,
       disciplineBadge,
       incidents: baIncidents,

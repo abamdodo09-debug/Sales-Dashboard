@@ -376,27 +376,14 @@ export const MASTER_PRODUCTS = [
 export const TEAM_STRUCTURE = [
   {
     spv: 'WIDODO',
-    region: 'PEKAN BARU',
+    region: 'AREA RIAU',
     salesReps: [
-      { name: 'ILHAMSYAH', area: 'AREA BARU' },
+      { name: 'ALBERT FERNANDO', area: 'DUMAI' },
+      { name: 'ILHAMSYAH', area: 'PEKANBARU' },
+      { name: 'TIWI', area: 'PEKANBARU' },
+      { name: 'ABDUL RAHIM', area: 'DURI' },
+      { name: 'PARETO', area: 'PEKANBARU' },
       { name: 'LUAR KOTA', area: 'LUAR KOTA' },
-      { name: 'BUDI SANTOSO', area: 'AREA BARU' },
-    ],
-  },
-  {
-    spv: 'HENDRA GUNAWAN',
-    region: 'DUMAI',
-    salesReps: [
-      { name: 'MAYA SARI', area: 'AREA BARU' },
-      { name: 'EKO PRASETYO', area: 'LUAR KOTA' },
-    ],
-  },
-  {
-    spv: 'SISKA MELINDA',
-    region: 'BATAM',
-    salesReps: [
-      { name: 'RINA WATI', area: 'AREA BARU' },
-      { name: 'ANDI WIJAYA', area: 'LUAR KOTA' },
     ],
   },
 ];
@@ -404,25 +391,26 @@ export const TEAM_STRUCTURE = [
 export const STORES_BY_REGION: Record<string, string[]> = {
   'PEKAN BARU': [
     'TOKO ALANA BEAUTY',
-    'SYMPHONY KOSMETIK',
-    'I.C.A COSMETIK',
-    'Alfamart_DC PEKANBARU',
-    'TOKO CANTIK RIAU',
-    'SENTOSA JAYA KOSMETIK',
-    'MAJU BERSAMA BEAUTY',
-    'MUTIARA KOSMETIK',
+    'MISS GLAM BUKIT BARISAN',
+    'MISS GLAM SUDIRMAN',
+    'AKAR SARI KOSMETIK (HARAPAN RAYA)',
+    'ANNISA COSMETIK ARIFIN',
+    'GLASTING GLOW',
+    'TOKO HIDAYAH BEAUTY',
+    'CITRA SWALAYAN',
   ],
   'DUMAI': [
-    'DUMAI BEAUTY CENTER',
-    'MAHKOTA KOSMETIK DUMAI',
-    'TOKO CITRA ASRI',
-    'Indomaret_DC DUMAI',
+    'TOKO DUMAI BARU',
+    'SABRINA STORE',
+    'MISS GLAM DUMAI',
+    'CITRA SWALAYAN',
+    'TOKO BLINK COSMETIC',
   ],
-  'BATAM': [
-    'NAGAYA BEAUTY STORE',
-    'BATAM COSMETICS HUB',
-    'MEGA MALL BEAUTY CORNER',
-    'Alfamart_DC BATAM',
+  'DURI': [
+    'ANNISA KOSMETIK (DURI)',
+    'MISS GLAM DURI',
+    'TOKO ISTANA KOSMETIK (BAGAN SIAPI API)',
+    'MM SANIA (BAGAN SIAPI API)',
   ],
 };
 
@@ -613,8 +601,8 @@ function generateSeedData(): TransactionRecord[] {
 
   // Generate records for both 2025 and 2026
   const simulationConfigs = [
-    // 2026: Active Year, heavy September data + Jan-Aug monthly trends
-    { year: 2026, months: [0, 1, 2, 3, 4, 5, 6, 7, 8], growthFactor: 1.22 },
+    // 2026: Active Year, heavy September & October data + Jan-Aug monthly trends
+    { year: 2026, months: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], growthFactor: 1.25 },
     // 2025: Baseline Year for YoY comparison
     { year: 2025, months: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], growthFactor: 1.0 },
   ];
@@ -622,9 +610,9 @@ function generateSeedData(): TransactionRecord[] {
   simulationConfigs.forEach(({ year, months, growthFactor }) => {
     months.forEach((mIndex) => {
       const monthName = monthNames[mIndex];
-      // Number of transactions per month (higher in Sep 2026)
-      const isSep2026 = year === 2026 && mIndex === 8;
-      const txCount = isSep2026 ? 85 : 22;
+      // Number of transactions per month (higher in Sep & Oct 2026)
+      const isActive2026 = year === 2026 && (mIndex === 8 || mIndex === 9);
+      const txCount = isActive2026 ? 90 : 24;
 
       for (let i = 0; i < txCount; i++) {
         // Pick team & sales rep
@@ -635,8 +623,9 @@ function generateSeedData(): TransactionRecord[] {
         const product = MASTER_PRODUCTS[Math.floor(random() * MASTER_PRODUCTS.length)];
 
         // Calculate realistic date
-        const day = isSep2026
-          ? Math.floor(random() * 30) + 1
+        const maxDays = mIndex === 8 ? 30 : (mIndex === 9 ? 31 : 28);
+        const day = isActive2026
+          ? Math.floor(random() * maxDays) + 1
           : Math.floor(random() * 28) + 1;
         const dateStr = `${mIndex + 1}/${day}/${year}`;
 

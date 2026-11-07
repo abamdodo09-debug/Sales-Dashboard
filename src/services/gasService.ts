@@ -1,4 +1,5 @@
 import { TransactionRecord, GasConfig } from '../types/dashboard';
+import { detectCategoryFromSku } from '../utils/analytics';
 
 const GAS_CONFIG_STORAGE_KEY = 'salespro_gas_config';
 const TRANSACTIONS_STORAGE_KEY = 'salespro_transactions_data';
@@ -395,6 +396,44 @@ export function normalizeRawRow(raw: any, index: number): TransactionRecord {
     }
   }
 
+  const rawFocus = String(
+    getVal([
+      'PRODUK FOKUS',
+      'PRODUK FOCUS',
+      'PRODUK_FOKUS',
+      'PRODUK_FOCUS',
+      'FOCUS',
+      'FOKUS',
+      'Focus',
+      'Produk Fokus',
+    ]) || ''
+  ).trim();
+  const isFocusDetected =
+    rawFocus.toUpperCase().includes('FOKUS') ||
+    rawFocus.toUpperCase().includes('FOCUS') ||
+    rawFocus.toUpperCase() === 'YES' ||
+    rawFocus.toUpperCase() === 'YA' ||
+    rawFocus.toUpperCase() === 'TRUE' ||
+    rawFocus === '1';
+
+  const rawNew = String(
+    getVal([
+      'PRODUK NEW',
+      'PRODUK_NEW',
+      'NEW',
+      'BARU',
+      'New',
+      'Produk New',
+    ]) || ''
+  ).trim();
+  const isNewDetected =
+    rawNew.toUpperCase().includes('NEW') ||
+    rawNew.toUpperCase().includes('BARU') ||
+    rawNew.toUpperCase() === 'YES' ||
+    rawNew.toUpperCase() === 'YA' ||
+    rawNew.toUpperCase() === 'TRUE' ||
+    rawNew === '1';
+
   return {
     id: raw.id || `row-${index + 1}`,
     TANGGAL: tanggal || '9/29/2026',
@@ -409,16 +448,25 @@ export function normalizeRawRow(raw: any, index: number): TransactionRecord {
     NO_SKU: String(getVal(['NO SKU', 'NO_SKU', 'SKU NO', 'No Sku', 'ITEM_CODE']) || '18186'),
     SPU: String(getVal(['SPU', 'Spu', 'SPU NAME']) || ''),
     SKU: String(getVal(['SKU', 'Sku', 'NAMA SKU', 'PRODUK', 'ITEM_NAME']) || 'PRODUK COSMETIC'),
-    PRODUK_FOCUS: String(getVal(['PRODUK FOCUS', 'PRODUK_FOCUS', 'FOCUS', 'Focus']) || 'REGULAR').toUpperCase(),
-    PRODUK_NEW: String(getVal(['PRODUK NEW', 'PRODUK_NEW', 'NEW', 'New']) || 'EXISTING').toUpperCase(),
+    PRODUK_FOCUS: isFocusDetected ? 'PRODUK FOKUS' : (rawFocus.toUpperCase() || 'REGULAR'),
+    PRODUK_NEW: isNewDetected ? 'PRODUK NEW' : (rawNew.toUpperCase() || 'EXISTING'),
     NAMA_STORE: String(getVal(['NAMA STORE', 'NAMA_STORE', 'STORE', 'Store', 'OUTLET', 'NAMA TOKO']) || 'TOKO ALANA BEAUTY'),
     REGION: String(getVal(['REGION', 'Region', 'WILAYAH', 'KOTA']) || 'PEKAN BARU'),
-    KATEGORI: String(getVal(['KATEGORI', 'Kategori', 'CATEGORY', 'Category']) || 'Makeup'),
+    KATEGORI: (() => {
+      const explicitCat = String(getVal(['KATEGORI', 'Kategori', 'CATEGORY', 'Category']) || '').trim();
+      if (explicitCat && explicitCat.toUpperCase() !== 'LAINNYA') return explicitCat;
+      const s = String(getVal(['SKU', 'Sku', 'NAMA SKU', 'PRODUK', 'ITEM_NAME']) || '');
+      const b = String(getVal(['BRAND', 'Brand', 'MEREK']) || '');
+      return detectCategoryFromSku(s, b);
+    })(),
     QTY: qty,
     VALUE: value,
     KET: String(getVal(['KET', 'Ket', 'KETERANGAN', 'STATUS']) || 'SELL IN').toUpperCase(),
     weekNumber,
-  };
+    // Keep raw keys so any accessor finds them
+    'PRODUK FOKUS': isFocusDetected ? 'PRODUK FOKUS' : '',
+    'PRODUK NEW': isNewDetected ? 'PRODUK NEW' : '',
+  } as any;
 }
 
 // Fetch live data from Google Apps Script Web App URL

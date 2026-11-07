@@ -1436,7 +1436,7 @@ export const KpiTrainerScorecard: React.FC<KpiTrainerScorecardProps> = ({ filter
                     </label>
                     <input
                       type="number"
-                      step="5000000"
+                      step="any"
                       value={editSellOutTarget}
                       onChange={(e) => setEditSellOutTarget(Math.max(0, Number(e.target.value)))}
                       className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -1448,7 +1448,7 @@ export const KpiTrainerScorecard: React.FC<KpiTrainerScorecardProps> = ({ filter
                     </label>
                     <input
                       type="number"
-                      step="5000000"
+                      step="any"
                       value={editSellOutActual}
                       onChange={(e) => setEditSellOutActual(Math.max(0, Number(e.target.value)))}
                       className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -1474,7 +1474,7 @@ export const KpiTrainerScorecard: React.FC<KpiTrainerScorecardProps> = ({ filter
                     </label>
                     <input
                       type="number"
-                      step="1000000"
+                      step="any"
                       value={editEventOmsetTarget}
                       onChange={(e) => setEditEventOmsetTarget(Math.max(0, Number(e.target.value)))}
                       className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -1486,7 +1486,7 @@ export const KpiTrainerScorecard: React.FC<KpiTrainerScorecardProps> = ({ filter
                     </label>
                     <input
                       type="number"
-                      step="1000000"
+                      step="any"
                       value={editEventOmsetActual}
                       onChange={(e) => setEditEventOmsetActual(Math.max(0, Number(e.target.value)))}
                       className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"

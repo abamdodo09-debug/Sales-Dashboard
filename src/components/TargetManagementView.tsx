@@ -53,6 +53,9 @@ import {
   DEFAULT_BA_LAVOJOY_TARGET,
   DEFAULT_TRAINER_SELL_OUT_TARGET,
   DEFAULT_TRAINER_FOCUS_TARGET_PCS,
+  loadTrainerConfigs,
+  saveTrainerConfigs,
+  TrainerTargetConfig,
 } from '../services/targetManagementService';
 import {
   loadFocusOverrides,
@@ -113,15 +116,44 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
 
   // 4. Edit BA Modal
   const [editingBa, setEditingBa] = useState<BaTargetItem | null>(null);
+  const [baNameInput, setBaNameInput] = useState<string>('');
+  const [baStoreNameInput, setBaStoreNameInput] = useState<string>('');
+  const [baSalesNameInput, setBaSalesNameInput] = useState<string>('');
   const [baNonLavojoyInput, setBaNonLavojoyInput] = useState<number>(DEFAULT_BA_NON_LAVOJOY_TARGET);
   const [baLavojoyInput, setBaLavojoyInput] = useState<number>(DEFAULT_BA_LAVOJOY_TARGET);
   const [baFocusInput, setBaFocusInput] = useState<number>(DEFAULT_FOCUS_TARGET_PCS);
 
+  // Add New Store & BA Modal
+  const [isAddBaOpen, setIsAddBaOpen] = useState(false);
+  const [newBaStoreName, setNewBaStoreName] = useState('');
+  const [newBaName, setNewBaName] = useState('');
+  const [newBaNumber, setNewBaNumber] = useState('');
+  const [newBaArea, setNewBaArea] = useState('PEKANBARU');
+  const [newBaSales, setNewBaSales] = useState('ILHAMSYAH');
+  const [newBaNonLavojoyTarget, setNewBaNonLavojoyTarget] = useState<number>(DEFAULT_BA_NON_LAVOJOY_TARGET);
+  const [newBaLavojoyTarget, setNewBaLavojoyTarget] = useState<number>(DEFAULT_BA_LAVOJOY_TARGET);
+  const [newBaFocusTarget, setNewBaFocusTarget] = useState<number>(DEFAULT_FOCUS_TARGET_PCS);
+
   // 5. Edit Trainer Modal
   const [editingTrainer, setEditingTrainer] = useState<TrainerTargetItem | null>(null);
+  const [trainerNameInput, setTrainerNameInput] = useState<string>('');
+  const [trainerAreaInput, setTrainerAreaInput] = useState<string>('');
+  const [trainerRegionInput, setTrainerRegionInput] = useState<string>('');
   const [trainerSellOutInput, setTrainerSellOutInput] = useState<number>(DEFAULT_TRAINER_SELL_OUT_TARGET);
   const [trainerFocusInput, setTrainerFocusInput] = useState<number>(DEFAULT_TRAINER_FOCUS_TARGET_PCS);
   const [trainerNotesInput, setTrainerNotesInput] = useState<string>('');
+
+  // Add New Trainer Modal
+  const [isAddTrainerOpen, setIsAddTrainerOpen] = useState(false);
+  const [newTrainerName, setNewTrainerName] = useState('');
+  const [newTrainerArea, setNewTrainerArea] = useState('');
+  const [newTrainerRegion, setNewTrainerRegion] = useState('PEKAN BARU');
+  const [newTrainerSellOut, setNewTrainerSellOut] = useState<number>(DEFAULT_TRAINER_SELL_OUT_TARGET);
+  const [newTrainerFocus, setNewTrainerFocus] = useState<number>(DEFAULT_TRAINER_FOCUS_TARGET_PCS);
+  const [newTrainerNotes, setNewTrainerNotes] = useState('');
+
+  // KET Filter (Semua, SELL IN, SELL OUT)
+  const [ketFilter, setKetFilter] = useState<'ALL' | 'SELL IN' | 'SELL OUT'>('ALL');
 
   // 6. Batch Target Modal
   const [isBatchOpen, setIsBatchOpen] = useState(false);
@@ -180,13 +212,14 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
     const currentLav = loadBaLavojoyTargets(selectedMonth);
     const currentFocus = loadFocusOverrides();
 
-    currentNon[editingBa.storeName] = baNonLavojoyInput;
-    currentLav[editingBa.storeName] = baLavojoyInput;
+    const targetStoreKey = baStoreNameInput.trim() || editingBa.storeName;
+    currentNon[targetStoreKey] = baNonLavojoyInput;
+    currentLav[targetStoreKey] = baLavojoyInput;
 
-    if (!currentFocus[editingBa.storeName]) {
-      currentFocus[editingBa.storeName] = { storeName: editingBa.storeName };
+    if (!currentFocus[targetStoreKey]) {
+      currentFocus[targetStoreKey] = { storeName: targetStoreKey };
     }
-    currentFocus[editingBa.storeName].targetPcs = baFocusInput;
+    currentFocus[targetStoreKey].targetPcs = baFocusInput;
 
     saveBaNonLavojoyTargets(currentNon, selectedMonth);
     saveBaLavojoyTargets(currentLav, selectedMonth);
@@ -195,13 +228,60 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
     setEditingBa(null);
     setRefreshKey((k) => k + 1);
     if (onTargetUpdated) onTargetUpdated();
-    showNotification(`Target Toko/BA "${editingBa.storeName}" (${selectedMonth}) berhasil diperbarui!`);
+    showNotification(`Target & Data Toko/BA "${targetStoreKey}" (${selectedMonth}) berhasil diperbarui!`);
   };
 
-  // 5. Handler for Saving Trainer Target
+  const handleAddNewStoreBa = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newBaStoreName.trim()) return;
+    const storeName = newBaStoreName.trim().toUpperCase();
+    const baName = newBaName.trim().toUpperCase() || 'BA BARU';
+
+    const currentNon = loadBaNonLavojoyTargets(selectedMonth);
+    const currentLav = loadBaLavojoyTargets(selectedMonth);
+    const currentFocus = loadFocusOverrides();
+
+    currentNon[storeName] = newBaNonLavojoyTarget;
+    currentLav[storeName] = newBaLavojoyTarget;
+    currentFocus[storeName] = {
+      storeName,
+      targetPcs: newBaFocusTarget,
+    };
+
+    saveBaNonLavojoyTargets(currentNon, selectedMonth);
+    saveBaLavojoyTargets(currentLav, selectedMonth);
+    saveFocusOverrides(currentFocus);
+
+    setIsAddBaOpen(false);
+    setNewBaStoreName('');
+    setNewBaName('');
+    setNewBaNumber('');
+    setRefreshKey((k) => k + 1);
+    if (onTargetUpdated) onTargetUpdated();
+    showNotification(`Toko & BA baru "${storeName}" (${baName}) berhasil ditambahkan ke daftar target!`);
+  };
+
+  // 5. Handler for Saving Trainer Target & Profile
   const handleSaveTrainerTarget = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTrainer) return;
+
+    // Update trainer config (name, area, region)
+    const allTrainers = loadTrainerConfigs();
+    const updatedTrainers = allTrainers.map((t) => {
+      if (t.id === editingTrainer.id) {
+        return {
+          ...t,
+          trainerName: trainerNameInput.trim().toUpperCase() || t.trainerName,
+          areaCovered: trainerAreaInput.trim() || t.areaCovered,
+          region: trainerRegionInput.trim() || t.region,
+          notes: trainerNotesInput.trim() || t.notes,
+        };
+      }
+      return t;
+    });
+    saveTrainerConfigs(updatedTrainers);
+
     const current = loadTrainerTargets(selectedMonth);
     current[editingTrainer.id] = {
       targetSellOut: trainerSellOutInput,
@@ -209,12 +289,49 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
       notes: trainerNotesInput,
     };
     saveTrainerTargets(current, selectedMonth);
+
     setEditingTrainer(null);
     setRefreshKey((k) => k + 1);
     if (onTargetUpdated) onTargetUpdated();
     showNotification(
-      `Target Trainer "${editingTrainer.trainerName}" (${selectedMonth}) berhasil disimpan: SO ${formatRupiah(trainerSellOutInput)} & Fokus ${trainerFocusInput} pcs`
+      `Target & Profil Trainer "${trainerNameInput || editingTrainer.trainerName}" (${selectedMonth}) berhasil disimpan: SO ${formatRupiah(trainerSellOutInput)} & Fokus ${trainerFocusInput} pcs`
     );
+  };
+
+  // Handler for Adding New Trainer
+  const handleAddNewTrainer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTrainerName.trim()) return;
+    const allTrainers = loadTrainerConfigs();
+    const newId = `trn-${Date.now()}`;
+    const newConfig: TrainerTargetConfig = {
+      id: newId,
+      trainerName: newTrainerName.trim().toUpperCase(),
+      areaCovered: newTrainerArea.trim() || 'AREA OPERASIONAL RIAU',
+      region: newTrainerRegion.trim() || 'PEKAN BARU',
+      targetSellOut: newTrainerSellOut,
+      targetProdukFokusPcs: newTrainerFocus,
+      notes: newTrainerNotes.trim(),
+    };
+    allTrainers.push(newConfig);
+    saveTrainerConfigs(allTrainers);
+
+    // Save target for selected month
+    const currentTargets = loadTrainerTargets(selectedMonth);
+    currentTargets[newId] = {
+      targetSellOut: newTrainerSellOut,
+      targetProdukFokusPcs: newTrainerFocus,
+      notes: newTrainerNotes.trim(),
+    };
+    saveTrainerTargets(currentTargets, selectedMonth);
+
+    setIsAddTrainerOpen(false);
+    setNewTrainerName('');
+    setNewTrainerArea('');
+    setNewTrainerNotes('');
+    setRefreshKey((k) => k + 1);
+    if (onTargetUpdated) onTargetUpdated();
+    showNotification(`Trainer baru "${newConfig.trainerName}" berhasil ditambahkan!`);
   };
 
   // Handler for Batch Target Setting
@@ -542,7 +659,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* FILTER BULAN TARGET PERIODE */}
+            {/* FILTER BULAN TARGET PERIODE (12 BULAN LENGKAP) */}
             <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-400/40 text-xs backdrop-blur-xs transition-colors">
               <Calendar className="w-4 h-4 text-cyan-300" />
               <span className="text-[11px] text-indigo-200 font-bold">Target Bulan:</span>
@@ -555,9 +672,36 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 className="bg-transparent font-black text-white focus:outline-hidden cursor-pointer"
               >
                 <option value="2026-10" className="text-slate-900">Oktober 2026 (Aktif)</option>
+                <option value="2026-11" className="text-slate-900">November 2026</option>
+                <option value="2026-12" className="text-slate-900">Desember 2026</option>
                 <option value="2026-09" className="text-slate-900">September 2026</option>
                 <option value="2026-08" className="text-slate-900">Agustus 2026</option>
+                <option value="2026-07" className="text-slate-900">Juli 2026</option>
+                <option value="2026-06" className="text-slate-900">Juni 2026</option>
+                <option value="2026-05" className="text-slate-900">Mei 2026</option>
+                <option value="2026-04" className="text-slate-900">April 2026</option>
+                <option value="2026-03" className="text-slate-900">Maret 2026</option>
+                <option value="2026-02" className="text-slate-900">Februari 2026</option>
+                <option value="2026-01" className="text-slate-900">Januari 2026</option>
                 <option value="ALL" className="text-slate-900">Semua Bulan (Baseline Global)</option>
+              </select>
+            </div>
+
+            {/* FILTER KET: SEMUA / SELL IN / SELL OUT */}
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-xs backdrop-blur-xs transition-colors">
+              <span className="text-[11px] text-cyan-200 font-bold">Filter KET:</span>
+              <select
+                value={ketFilter}
+                onChange={(e) => {
+                  const val = e.target.value as 'ALL' | 'SELL IN' | 'SELL OUT';
+                  setKetFilter(val);
+                  showNotification(`Filter KET diatur ke: ${val}`);
+                }}
+                className="bg-transparent font-black text-white focus:outline-hidden cursor-pointer"
+              >
+                <option value="ALL" className="text-slate-900">Semua (Konsolidasi)</option>
+                <option value="SELL IN" className="text-slate-900">SELL IN (Target Distributor)</option>
+                <option value="SELL OUT" className="text-slate-900">SELL OUT (Target Kasir BA/Toko)</option>
               </select>
             </div>
 
@@ -1251,8 +1395,27 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 Target per toko ber-BA: Target Non-Lavojoy (30 Jt), Target Lavojoy 4% (5 Jt), dan Target Produk Fokus (120 pcs).
               </p>
             </div>
-            <div className="text-xs font-mono text-slate-600">
-              Total Gerai BA: <strong className="text-teal-700 font-bold">{matrixData.bas.length}</strong>
+            <div className="flex items-center gap-2.5">
+              <div className="text-xs font-mono text-slate-600">
+                Total Gerai BA: <strong className="text-teal-700 font-bold">{matrixData.bas.length}</strong>
+              </div>
+              <button
+                onClick={() => {
+                  setNewBaStoreName('');
+                  setNewBaName('');
+                  setNewBaNumber('');
+                  setNewBaArea('PEKANBARU');
+                  setNewBaSales('ILHAMSYAH');
+                  setNewBaNonLavojoyTarget(DEFAULT_BA_NON_LAVOJOY_TARGET);
+                  setNewBaLavojoyTarget(DEFAULT_BA_LAVOJOY_TARGET);
+                  setNewBaFocusTarget(DEFAULT_FOCUS_TARGET_PCS);
+                  setIsAddBaOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs shadow-xs cursor-pointer transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Toko &amp; BA Baru</span>
+              </button>
             </div>
           </div>
 
@@ -1375,6 +1538,9 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                         <button
                           onClick={() => {
                             setEditingBa(item);
+                            setBaNameInput(item.baName);
+                            setBaStoreNameInput(item.storeName);
+                            setBaSalesNameInput(item.salesName);
                             setBaNonLavojoyInput(item.targetNonLavojoy);
                             setBaLavojoyInput(item.targetLavojoy);
                             setBaFocusInput(item.targetFocusPcs);
@@ -1382,7 +1548,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                           className="px-2 py-1 rounded-lg border border-teal-300 text-teal-700 hover:bg-teal-50 transition-colors shadow-2xs cursor-pointer font-bold flex items-center gap-1 mx-auto"
                         >
                           <Edit3 className="w-3 h-3" />
-                          <span>Ubah Target</span>
+                          <span>Ubah Target &amp; Nama</span>
                         </button>
                       </td>
                     </tr>
@@ -1409,9 +1575,26 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 Target bulanan yang dapat diedit untuk Trainer mencakup <strong>Target Sell Out (Rp)</strong> dan <strong>Target Produk Fokus (Pcs)</strong>.
               </p>
             </div>
-            <div className="text-xs font-mono text-slate-600">
-              Menampilkan: <strong className="text-slate-900">{filteredTrainers.length}</strong> Trainer | Target Periode:{' '}
-              <strong className="text-amber-700 font-bold">{selectedMonth}</strong>
+            <div className="flex items-center gap-2.5">
+              <div className="text-xs font-mono text-slate-600">
+                Menampilkan: <strong className="text-slate-900">{filteredTrainers.length}</strong> Trainer | Target Periode:{' '}
+                <strong className="text-amber-700 font-bold">{selectedMonth}</strong>
+              </div>
+              <button
+                onClick={() => {
+                  setNewTrainerName('');
+                  setNewTrainerArea('');
+                  setNewTrainerRegion('PEKAN BARU');
+                  setNewTrainerSellOut(DEFAULT_TRAINER_SELL_OUT_TARGET);
+                  setNewTrainerFocus(DEFAULT_TRAINER_FOCUS_TARGET_PCS);
+                  setNewTrainerNotes('');
+                  setIsAddTrainerOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs cursor-pointer transition-all"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Tambah Trainer Baru</span>
+              </button>
             </div>
           </div>
 
@@ -1557,6 +1740,9 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                         <button
                           onClick={() => {
                             setEditingTrainer(item);
+                            setTrainerNameInput(item.trainerName);
+                            setTrainerAreaInput(item.areaCovered);
+                            setTrainerRegionInput(item.region);
                             setTrainerSellOutInput(item.targetSellOut);
                             setTrainerFocusInput(item.targetProdukFokusPcs);
                             setTrainerNotesInput(item.notes || '');
@@ -1564,7 +1750,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                           className="px-2.5 py-1 rounded-lg border border-amber-300 text-amber-800 hover:bg-amber-100 transition-colors shadow-2xs cursor-pointer font-bold flex items-center gap-1 mx-auto"
                         >
                           <Edit3 className="w-3 h-3 text-amber-700" />
-                          <span>Ubah Target</span>
+                          <span>Ubah Target &amp; Profil</span>
                         </button>
                       </td>
                     </tr>
@@ -1601,12 +1787,53 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveTrainerTarget} className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Nama Trainer */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Nama Trainer</label>
+                  <input
+                    type="text"
+                    value={trainerNameInput}
+                    onChange={(e) => setTrainerNameInput(e.target.value)}
+                    placeholder="e.g. ARA / RATIH"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+
+                {/* Region */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Region</label>
+                  <input
+                    type="text"
+                    value={trainerRegionInput}
+                    onChange={(e) => setTrainerRegionInput(e.target.value)}
+                    placeholder="e.g. PEKAN BARU / DURI"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Wilayah Binaan */}
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Wilayah Cover / Sales Binaan</label>
+                <input
+                  type="text"
+                  value={trainerAreaInput}
+                  onChange={(e) => setTrainerAreaInput(e.target.value)}
+                  placeholder="e.g. PEKANBARU, DUMAI, SIAK (Sales Albert, Ilhamsyah, Tiwi)"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  required
+                />
+              </div>
+
               {/* Target Sell Out */}
               <div>
                 <label className="block text-slate-700 font-bold mb-1">Target Sell Out Trainer (Rp)</label>
                 <input
                   type="number"
-                  step="1000000"
+                  step="any"
                   value={trainerSellOutInput}
                   onChange={(e) => setTrainerSellOutInput(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
@@ -1622,7 +1849,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">Target Produk Fokus Trainer (Pcs)</label>
                 <input
                   type="number"
-                  step="10"
+                  step="any"
                   value={trainerFocusInput}
                   onChange={(e) => setTrainerFocusInput(Math.max(0, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
@@ -1635,7 +1862,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
 
               {/* Catatan / Spesialisasi */}
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Catatan / Wilayah Binaan</label>
+                <label className="block text-slate-700 font-bold mb-1">Catatan / Spesialisasi</label>
                 <input
                   type="text"
                   value={trainerNotesInput}
@@ -1682,7 +1909,128 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                   className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/30 flex items-center gap-1.5 cursor-pointer"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Target Trainer ({selectedMonth})</span>
+                  <span>Simpan Target &amp; Profil Trainer</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================================= */}
+      {/* MODAL: TAMBAH TRAINER BARU                                                                */}
+      {/* ========================================================================================= */}
+      {isAddTrainerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-5 bg-gradient-to-r from-amber-700 via-orange-800 to-amber-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold flex items-center gap-2">
+                  <GraduationCap className="w-5 h-5 text-amber-300" />
+                  Tambah Trainer Baru ({selectedMonth})
+                </h3>
+                <p className="text-xs text-amber-200 mt-0.5">
+                  Tambahkan personil Trainer baru ke dalam daftar binaan area
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddTrainerOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewTrainer} className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Nama Trainer</label>
+                  <input
+                    type="text"
+                    value={newTrainerName}
+                    onChange={(e) => setNewTrainerName(e.target.value)}
+                    placeholder="e.g. RATIH / ARA / NAMA BARU"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500 uppercase"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Region</label>
+                  <input
+                    type="text"
+                    value={newTrainerRegion}
+                    onChange={(e) => setNewTrainerRegion(e.target.value)}
+                    placeholder="e.g. PEKAN BARU / DURI"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500 uppercase"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Wilayah Cover / Sales Binaan</label>
+                <input
+                  type="text"
+                  value={newTrainerArea}
+                  onChange={(e) => setNewTrainerArea(e.target.value)}
+                  placeholder="e.g. PEKANBARU, DUMAI, SIAK (Sales Albert, Ilhamsyah)"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Target Sell Out (Rp)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newTrainerSellOut}
+                    onChange={(e) => setNewTrainerSellOut(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Target Produk Fokus (Pcs)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newTrainerFocus}
+                    onChange={(e) => setNewTrainerFocus(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Catatan / Spesialisasi</label>
+                <input
+                  type="text"
+                  value={newTrainerNotes}
+                  onChange={(e) => setNewTrainerNotes(e.target.value)}
+                  placeholder="e.g. Trainer Area Pekanbaru - Fokus barenbliss & Dazzle Me"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddTrainerOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold shadow-md shadow-amber-600/30 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Trainer Baru</span>
                 </button>
               </div>
             </form>
@@ -1717,7 +2065,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">Target Omzet Area (Rp)</label>
                 <input
                   type="number"
-                  step="1000000"
+                  step="any"
                   value={areaTargetInput}
                   onChange={(e) => setAreaTargetInput(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-cyan-500"
@@ -1789,7 +2137,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">Target Tim SPV (Rp)</label>
                 <input
                   type="number"
-                  step="1000000"
+                  step="any"
                   value={spvTargetInput}
                   onChange={(e) => setSpvTargetInput(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -1861,7 +2209,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 <label className="block text-slate-700 font-bold mb-1">Target Sell In Sales (Rp)</label>
                 <input
                   type="number"
-                  step="1000000"
+                  step="any"
                   value={salesTargetInput}
                   onChange={(e) => setSalesTargetInput(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -1922,7 +2270,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
       )}
 
       {/* ========================================================================================= */}
-      {/* MODAL 4: EDIT TARGET BA TOKO */}
+      {/* MODAL 4: EDIT TARGET BA TOKO & NAMA BA/TOKO                                               */}
       {/* ========================================================================================= */}
       {editingBa && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -1931,10 +2279,10 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
               <div>
                 <h3 className="text-base font-extrabold flex items-center gap-2">
                   <Store className="w-4 h-4 text-teal-300" />
-                  Edit Target BA Toko &amp; Produk Fokus
+                  Edit Target &amp; Profil Toko BA
                 </h3>
                 <p className="text-xs text-teal-200 mt-0.5">
-                  {editingBa.baName} ({editingBa.baNumber}) • {editingBa.storeName}
+                  {editingBa.baName} • {editingBa.storeName}
                 </p>
               </div>
               <button
@@ -1947,12 +2295,40 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
 
             <form onSubmit={handleSaveBaTarget} className="p-5 space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Nama Toko */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Nama Toko / Outlet</label>
+                  <input
+                    type="text"
+                    value={baStoreNameInput}
+                    onChange={(e) => setBaStoreNameInput(e.target.value)}
+                    placeholder="Nama Toko"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-500 uppercase"
+                    required
+                  />
+                </div>
+
+                {/* Nama BA */}
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Nama Beauty Advisor (BA)</label>
+                  <input
+                    type="text"
+                    value={baNameInput}
+                    onChange={(e) => setBaNameInput(e.target.value)}
+                    placeholder="Nama BA"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:ring-2 focus:ring-teal-500 uppercase"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Non-Lavojoy */}
                 <div className="p-3 rounded-xl border border-teal-200 bg-teal-50/30">
                   <label className="block text-teal-950 font-bold mb-1">Target Non-Lavojoy (Rp)</label>
                   <input
                     type="number"
-                    step="1000000"
+                    step="any"
                     value={baNonLavojoyInput}
                     onChange={(e) => setBaNonLavojoyInput(Math.max(1, Number(e.target.value)))}
                     className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:ring-2 focus:ring-teal-500"
@@ -1968,7 +2344,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                   <label className="block text-purple-950 font-bold mb-1">Target Lavojoy 4% (Rp)</label>
                   <input
                     type="number"
-                    step="500000"
+                    step="any"
                     value={baLavojoyInput}
                     onChange={(e) => setBaLavojoyInput(Math.max(1, Number(e.target.value)))}
                     className="w-full px-3 py-1.5 text-xs font-mono font-bold rounded-lg border border-slate-300 focus:ring-2 focus:ring-purple-500"
@@ -1993,7 +2369,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 </div>
                 <input
                   type="number"
-                  step="1"
+                  step="any"
                   value={baFocusInput}
                   onChange={(e) => setBaFocusInput(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-black rounded-lg border border-amber-300 focus:ring-2 focus:ring-amber-500"
@@ -2019,7 +2395,143 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                   className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-md shadow-teal-600/30 flex items-center gap-1.5"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Simpan Target Toko</span>
+                  <span>Simpan Target &amp; Profil Toko</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================================= */}
+      {/* MODAL: TAMBAH TOKO & BA BARU                                                              */}
+      {/* ========================================================================================= */}
+      {isAddBaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-100 overflow-hidden">
+            <div className="p-5 bg-gradient-to-r from-teal-800 to-indigo-950 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-extrabold flex items-center gap-2">
+                  <Store className="w-5 h-5 text-teal-300" />
+                  Tambah Toko &amp; BA Baru ({selectedMonth})
+                </h3>
+                <p className="text-xs text-teal-200 mt-0.5">
+                  Tambahkan penugasan Toko dan Beauty Advisor baru ke sistem
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddBaOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/80 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddNewStoreBa} className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Nama Toko / Outlet</label>
+                  <input
+                    type="text"
+                    value={newBaStoreName}
+                    onChange={(e) => setNewBaStoreName(e.target.value)}
+                    placeholder="e.g. TOKO MAKMUR BEAUTY"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500 uppercase"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Nama Beauty Advisor (BA)</label>
+                  <input
+                    type="text"
+                    value={newBaName}
+                    onChange={(e) => setNewBaName(e.target.value)}
+                    placeholder="e.g. SITI NURHALIZA"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500 uppercase"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Area Operasional</label>
+                  <input
+                    type="text"
+                    value={newBaArea}
+                    onChange={(e) => setNewBaArea(e.target.value)}
+                    placeholder="e.g. PEKANBARU / DUMAI"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500 uppercase"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Sales In-Charge</label>
+                  <input
+                    type="text"
+                    value={newBaSales}
+                    onChange={(e) => setNewBaSales(e.target.value)}
+                    placeholder="e.g. ILHAMSYAH / ALBERT"
+                    className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500 uppercase"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Target Non-Lavojoy (Rp)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newBaNonLavojoyTarget}
+                    onChange={(e) => setNewBaNonLavojoyTarget(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-bold mb-1">Target Lavojoy (Rp)</label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={newBaLavojoyTarget}
+                    onChange={(e) => setNewBaLavojoyTarget(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-bold mb-1">Target Produk Fokus (Pcs)</label>
+                <input
+                  type="number"
+                  step="any"
+                  value={newBaFocusTarget}
+                  onChange={(e) => setNewBaFocusTarget(Math.max(0, Number(e.target.value)))}
+                  className="w-full px-3 py-2 text-sm font-mono font-bold rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-teal-500"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddBaOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold shadow-md shadow-teal-600/30 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Simpan Toko &amp; BA Baru</span>
                 </button>
               </div>
             </form>
@@ -2085,7 +2597,7 @@ export const TargetManagementView: React.FC<TargetManagementViewProps> = ({
                 </label>
                 <input
                   type="number"
-                  step={(batchTargetType === 'ba_focus' || batchTargetType === 'trainer_focus') ? '1' : '1000000'}
+                  step="any"
                   value={batchTargetValue}
                   onChange={(e) => setBatchTargetValue(Math.max(1, Number(e.target.value)))}
                   className="w-full px-3 py-2 text-sm font-mono font-black rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500"

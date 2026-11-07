@@ -130,6 +130,14 @@ export const Header: React.FC<HeaderProps> = ({
           icon: <Store className="w-4 h-4 text-pink-600" />,
           badge: 'Rasio',
         },
+        {
+          id: 'manage_ka_mg',
+          label: 'Kelola Sell In KA & MG',
+          shortLabel: 'Sell In KA & MG',
+          description: 'Pusat edit terintegrasi & histori Sell In KA & DAZZLE ME MG (Jan-Des)',
+          icon: <Sliders className="w-4 h-4 text-emerald-600" />,
+          badge: 'Central Edit',
+        },
       ],
     },
     {
@@ -146,6 +154,14 @@ export const Header: React.FC<HeaderProps> = ({
           description: 'Laporan mingguan toko coveran Sales & grafik performa BA',
           icon: <FileSpreadsheet className="w-4 h-4 text-sky-600" />,
           badge: 'Template Gambar',
+        },
+        {
+          id: 'info_keaktifan',
+          label: 'Info Keaktifan SDM & Toko',
+          shortLabel: 'Info Keaktifan',
+          description: 'Matriks bulanan keaktifan Toko, BA, Sales & Trainer dari Google Sheet',
+          icon: <Users className="w-4 h-4 text-emerald-600" />,
+          badge: 'Real-time',
         },
         {
           id: 'produk_fokus',
@@ -281,6 +297,14 @@ export const Header: React.FC<HeaderProps> = ({
           icon: <Sliders className="w-4 h-4 text-cyan-600" />,
         },
         {
+          id: 'pengaturan_master',
+          label: 'List Data Sales, SPV, BA, Trainer & Toko',
+          shortLabel: 'List Master & Coverage',
+          description: 'Satu tempat kelola seluruh Sales, SPV, BA, Trainer dan Nama Toko yang bisa diedit & ditambah manual',
+          icon: <Store className="w-4 h-4 text-emerald-600" />,
+          badge: 'Satu Tempat Edit',
+        },
+        {
           id: 'table',
           label: 'Data Mentah Transaksi',
           shortLabel: 'Data Mentah',
@@ -367,6 +391,20 @@ export const Header: React.FC<HeaderProps> = ({
                 <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
               </button>
             )}
+
+            {/* Quick Access to Master Toko, Sales, BA, SPV & Trainer */}
+            <button
+              onClick={() => onTabChange('pengaturan_master')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border transition-all shadow-2xs cursor-pointer ${
+                activeTab === 'pengaturan_master'
+                  ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+              }`}
+              title="Menu List Data Sales, SPV, BA, Trainer & Nama Toko (Satu Tempat Edit)"
+            >
+              <Store className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">Master &amp; Tim Coverage</span>
+            </button>
 
             {/* Export Dropdown Menu */}
             <div className="relative" ref={exportMenuRef}>

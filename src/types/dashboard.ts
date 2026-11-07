@@ -61,7 +61,10 @@ export type ActiveTab =
   | 'sku'
   | 'table'
   | 'sell_in_vs_sell_out'
-  | 'kontribusi_toko_ba';
+  | 'kontribusi_toko_ba'
+  | 'pengaturan_master'
+  | 'manage_ka_mg'
+  | 'info_keaktifan';
 
 export interface AreaTargetItem {
   coverArea: string;
@@ -194,7 +197,7 @@ export interface BaSalaryItem {
   targetNonLavojoy: number;
   achievementNonLavojoyPercent: number;
   baseSalary: number;                  // Rp 3.9M (>=100%), Rp 2.925M (70-99%), Rp 2M (1-25M), Rp 0 (<1M)
-  incentiveNonLavojoyPercent: number;  // 2% (>=120%), 1% (100-119%), 0% (<100%)
+  incentiveNonLavojoyPercent: number;  // 2% (>=120%), 2% (100-119%), 0% (<100%)
   incentiveNonLavojoyNominal: number;
   tierLabel: string;
   tierColor: string;
@@ -464,6 +467,9 @@ export interface KpiSalesScorecardItem {
   spv: string;
   monthPeriod: string;
   notes?: string;
+  trainerCovered?: string;
+  coveredStores?: string[];
+  storeCount?: number;
   // Pilar 1: Poin Sell Out (40 pt)
   sellOutTarget: number;
   sellOutActual: number;
@@ -520,6 +526,20 @@ export interface BaNihilIncidentRecord {
   customDendaNominal?: number;
 }
 
+export type BaDayStatus = 'report' | 'no_sell' | 'off_day';
+
+export interface BaDailyDayRecord {
+  dayNum: number;
+  dateStr: string;
+  dayName: string;
+  status: BaDayStatus;
+  dendaNominal: number;
+  sellOutAmount: number;
+  isSystemDetected?: boolean;
+  isCustomOverride?: boolean;
+  note?: string;
+}
+
 export interface BaPunishmentSummaryItem {
   baName: string;
   baNumber: string;
@@ -528,12 +548,17 @@ export interface BaPunishmentSummaryItem {
   region: string;
   salesName: string;
   spvName: string;
+  trainerName?: string;
   brand: string;
   totalNihilDays: number;
   totalOffDays?: number;         // Total hari BA off (denda Rp 0)
+  totalReportDays?: number;      // Total hari ada penjualan sell out (Report)
+  noSellDays: number;            // Total hari tidak ada penjualan sell out (No sell)
+  daysInMonthCount?: number;     // Total hari dalam bulan (1 - 30 hari)
   totalDendaNominal: number;     // totalNihilDays * 25.000 (excluding dispensation & off days)
   disciplineBadge: 'tertib' | 'peringatan_1' | 'peringatan_2' | 'peringatan_sp';
   incidents: BaNihilIncidentRecord[];
+  dailySchedule?: BaDailyDayRecord[];
   sellOutActual: number;
   baseSalary: number;
   totalTakeHomePay: number;
@@ -595,6 +620,13 @@ export interface EntityProductAnalysisItem {
   // Produk Regular/Existing
   currentRegular: number;
   previousRegular: number;
+
+  // Keterangan Sell In & Sell Out
+  currentSellIn?: number;
+  currentSellOut?: number;
+  previousSellIn?: number;
+  previousSellOut?: number;
+  ket?: 'SELL IN' | 'SELL OUT' | 'SELL IN & OUT';
 
   // Top SKUs breakdown
   topFocusSkus?: { sku: string; brand: string; value: number; qty: number }[];
@@ -888,6 +920,8 @@ export interface SellInSellOutItem {
   salesName?: string;
   trainerName?: string;
   spvName?: string;
+  target?: number;
+  achievementPercent?: number;
 }
 
 export interface SellInSellOutSummary {
@@ -903,6 +937,17 @@ export interface SellInSellOutSummary {
   overstockCount: number;
   stockoutRiskCount: number;
   healthyCount: number;
+  spvTotalSellIn?: number;
+  spvTotalSellOut?: number;
+  spvRegularSellIn?: number;
+  kaSellInValue?: number;
+  dazzleMeMgSellInValue?: number;
+  kaSalesValue?: number;
+  dazzleMeMgSalesValue?: number;
+  targetSellIn?: number;
+  achievementSellInPct?: number;
+  totalPenjualanConsolidated?: number;
+  isManualOverride?: boolean;
 }
 
 export type StoreBaCategory = 'toko_ba' | 'toko_non_ba';
@@ -957,4 +1002,16 @@ export interface StoreBaContributionSummary {
   // Comparative Lift Factor
   productivityMultiplier: number; // e.g. 2.8x (Avg Omset Toko BA / Avg Omset Toko Non BA)
   potentialBaCandidateStoresCount: number; // Non-BA stores with high volume ripe for BA
+
+  // Komposisi Total Penjualan: Semua Penjualan SPV + Penjualan KA + PENJUALAN DAZZLE ME MG
+  spvTotalRevenue?: number;
+  spvRevenuePercent?: number;
+  kaRevenue: number;
+  mgRevenue: number; // PENJUALAN DAZZLE ME MG (Market Group)
+  dazzleMeMgRevenue?: number;
+  kaRevenuePercent: number;
+  mgRevenuePercent: number;
+  dazzleMeMgRevenuePercent?: number;
+  isManualKaMg?: boolean;
+  kaMgNotes?: string;
 }

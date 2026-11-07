@@ -43,7 +43,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
 
-  const comparison = calculateComparisonGrowth(records.length > 0 ? records : allRecords, compMode, filters);
+  const comparison = calculateComparisonGrowth(allRecords && allRecords.length > 0 ? allRecords : records, compMode, filters);
   const { overall, currentPeriodLabel, previousPeriodLabel, focusSummary, newSummary } = comparison;
 
   const isPos = overall.growthPercent >= 0;
@@ -571,9 +571,20 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
           </div>
         </div>
 
-        {/* Legend for Composition Bars */}
+        {/* Legend for Composition Bars & Tipe Keterangan */}
         <div className="flex flex-wrap items-center gap-4 mt-3 py-2 px-3 bg-slate-50/80 rounded-xl border border-slate-200/60 text-[11px] text-slate-600">
-          <span className="font-bold text-slate-700">Komposisi Produk:</span>
+          <span className="font-bold text-slate-700">Keterangan:</span>
+          <div className="flex items-center gap-1.5">
+            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-blue-100 text-blue-800 border border-blue-200">
+              SELL IN (Distributor)
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="px-2 py-0.5 rounded-md font-bold text-[10px] bg-emerald-100 text-emerald-800 border border-emerald-200">
+              SELL OUT (Konsumen)
+            </span>
+          </div>
+          <span className="font-bold text-slate-700 ml-2">Komposisi:</span>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-gradient-to-r from-amber-500 to-orange-500" />
             <span className="font-semibold text-slate-800">Produk Fokus</span>
@@ -584,10 +595,10 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded-full bg-slate-300" />
-            <span className="font-semibold text-slate-600">Regular / Existing</span>
+            <span className="font-semibold text-slate-600">Regular</span>
           </div>
           <div className="ml-auto text-[10px] text-slate-400 font-medium hidden md:inline">
-            * Klik baris entitas untuk melihat Top SKU Fokus & Produk Baru
+            * Klik baris entitas untuk melihat Top SKU Fokus &amp; Produk Baru
           </div>
         </div>
 
@@ -599,6 +610,11 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 <th className="py-3 px-3.5">
                   <span className="uppercase text-[11px] tracking-wider">
                     Nama {dimensionTab.toUpperCase()}
+                  </span>
+                </th>
+                <th className="py-3 px-3 text-center">
+                  <span className="uppercase text-[11px] tracking-wider">
+                    Ket Transaksi
                   </span>
                 </th>
 
@@ -690,7 +706,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {dimensionItems.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-slate-400 font-medium">
+                  <td colSpan={11} className="py-10 text-center text-slate-400 font-medium">
                     Tidak ada data entitas yang cocok dengan pencarian "{searchQuery}".
                   </td>
                 </tr>
@@ -728,6 +744,33 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                                 Vol: {formatNumber(item.currentQty)} pcs
                               </div>
                             </div>
+                          </div>
+                        </td>
+
+                        {/* Keterangan Transaksi: Sell In / Sell Out */}
+                        <td className="py-3 px-3 text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                item.ket === 'SELL IN'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : item.ket === 'SELL OUT'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                              }`}
+                            >
+                              {item.ket || 'SELL IN & OUT'}
+                            </span>
+                            {item.currentSellIn && item.currentSellIn > 0 && (
+                              <span className="text-[9px] font-mono text-blue-700 font-semibold block">
+                                In: {formatRupiah(item.currentSellIn, true)}
+                              </span>
+                            )}
+                            {item.currentSellOut && item.currentSellOut > 0 && (
+                              <span className="text-[9px] font-mono text-emerald-700 font-semibold block">
+                                Out: {formatRupiah(item.currentSellOut, true)}
+                              </span>
+                            )}
                           </div>
                         </td>
 

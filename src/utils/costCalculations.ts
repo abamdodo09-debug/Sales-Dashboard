@@ -9,7 +9,7 @@ import {
 } from '../types/dashboard';
 import { loadFocusOverrides, DEFAULT_FOCUS_TARGET_PCS } from '../services/focusProductService';
 import { loadKpiTrainerData } from '../services/kpiTrainerService';
-import { getTrainerForRecord } from './analytics';
+import { getTrainerForRecord, isFocusProduct } from './analytics';
 
 export const DEFAULT_TRAINER_BASE_SALARY = 3900000;
 export const DEFAULT_TRAINER_TRANSPORT_ALLOWANCE = 500000;
@@ -17,39 +17,21 @@ export const DEFAULT_TRAINER_TRANSPORT_ALLOWANCE = 500000;
 export const DEFAULT_TRAINERS_DATA = [
   {
     id: 'trn-1',
-    trainerName: 'Siti Rahmawati',
-    areaCovered: 'AREA BARU & PEKANBARU',
+    trainerName: 'ARA',
+    areaCovered: 'PEKANBARU, DUMAI, SIAK, INDRAGIRI (Sales Albert, Ilhamsyah, Pareto, Tiwi)',
     region: 'PEKAN BARU',
-    targetSellOut: 350000000,
-    targetProdukFokusPcs: 600,
-    notes: 'Trainer Lead - Focus Brand barenbliss & lavojoy',
+    targetSellOut: 450000000,
+    targetProdukFokusPcs: 800,
+    notes: 'Trainer Lead - Area Pekanbaru & Dumai, Focus Brand barenbliss, Dazzle Me, lavojoy',
   },
   {
     id: 'trn-2',
-    trainerName: 'Dewi Lestari',
-    areaCovered: 'LUAR KOTA & DURI',
+    trainerName: 'RATIH',
+    areaCovered: 'DURI, DUMAI, BAGAN SIAPI API, LUAR KOTA (Sales Abdul Rahim, Ilhamsyah, Luar Kota, Pareto, Tiwi)',
     region: 'DURI',
-    targetSellOut: 280000000,
-    targetProdukFokusPcs: 450,
-    notes: 'Trainer Area Luar Kota - Modern Trade & General Trade',
-  },
-  {
-    id: 'trn-3',
-    trainerName: 'Nurul Aini',
-    areaCovered: 'DUMAI & BAGAN',
-    region: 'DUMAI',
-    targetSellOut: 220000000,
-    targetProdukFokusPcs: 380,
-    notes: 'Trainer Area Dumai & Toko Kosmetik Mitra',
-  },
-  {
-    id: 'trn-4',
-    trainerName: 'Farah Diba',
-    areaCovered: 'SELAT PANJANG & BENGKALIS',
-    region: 'RIAU KEPULAUAN',
-    targetSellOut: 180000000,
-    targetProdukFokusPcs: 300,
-    notes: 'Trainer Specialist Produk Fokus & Skincare',
+    targetSellOut: 420000000,
+    targetProdukFokusPcs: 750,
+    notes: 'Trainer Area Duri, Bagan Siapi Api & Luar Kota - Modern Trade & General Trade',
   },
 ];
 
@@ -312,7 +294,7 @@ export function calculateSalesSalary(
  * - Catatan: Tidak ada BA Lavojoy terpisah; 1 BA melayani semua brand di gerai tersebut.
  * - Skema Non-Lavojoy (Y.O.U, barenbliss, DAZZLE ME, GLAMFIX, HUED, FORMULOGIC):
  *   • Capai Sell Out >= 120%: Gaji Pokok Rp 3.900.000 + Insentif 2% x Sell Out Non-Lavojoy
- *   • Capai Sell Out 100% - 119%: Gaji Pokok Rp 3.900.000 + Insentif 1% x Sell Out Non-Lavojoy
+ *   • Capai Sell Out 100% - 119%: Gaji Pokok Rp 3.900.000 + Insentif 2% x Sell Out Non-Lavojoy
  *   • Capai Sell Out 70% - 99%: Gaji flat yang diterima Rp 2.925.000 (Insentif 0%)
  *   • Capai Sell Out Rp 1.000.000 - Rp 25.000.000 (< 70%): Gaji flat diterima Rp 2.000.000
  *   • Capai Sell Out > Rp 25.000.000 (< 70%): Gaji flat diterima Rp 2.000.000
@@ -358,7 +340,7 @@ export function calculateBaSalary(
     tierColor = 'bg-purple-100 text-purple-800 border-purple-300';
   } else if (achievementNonLavojoyPercent >= 100) {
     baseSalary = 3900000;
-    incentiveNonLavojoyPercent = 1.0;
+    incentiveNonLavojoyPercent = 2.0;
     tierLabel = 'Tier Target (100% - 119%)';
     tierColor = 'bg-teal-100 text-teal-800 border-teal-300';
   } else if (achievementNonLavojoyPercent >= 70) {
@@ -543,7 +525,7 @@ export function aggregateAreaCost(
       trainerMap[tName] = { focusQty: 0, sellOut: 0 };
     }
     trainerMap[tName].sellOut += val;
-    if ((r.PRODUK_FOCUS || '').trim().toUpperCase() === 'FOCUS') {
+    if (isFocusProduct(r.PRODUK_FOCUS || r)) {
       trainerMap[tName].focusQty += (r.QTY || 0);
     }
 
@@ -604,7 +586,7 @@ export function aggregateAreaCost(
       baStoreMap[storeKey].sellOutActual += val;
 
       // Akumulasi penjualan produk fokus (Pcs)
-      const isFocus = (r.PRODUK_FOCUS || '').trim().toUpperCase() === 'FOCUS';
+      const isFocus = isFocusProduct(r.PRODUK_FOCUS || r);
       if (isFocus && (r.KET === 'SELL OUT' || !r.KET || r.KET === 'SELL IN')) {
         baStoreMap[storeKey].focusActualPcs += (r.QTY || 0);
       }
@@ -626,7 +608,7 @@ export function aggregateAreaCost(
         } else {
           storeTotals[r.NAMA_STORE].nonLavojoy += val;
         }
-        if ((r.PRODUK_FOCUS || '').trim().toUpperCase() === 'FOCUS') {
+        if (isFocusProduct(r.PRODUK_FOCUS || r)) {
           storeTotals[r.NAMA_STORE].focusQty += (r.QTY || 0);
         }
       }

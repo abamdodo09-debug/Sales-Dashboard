@@ -9,7 +9,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { TransactionRecord, DashboardFilters, MetricSummary } from '../types/dashboard';
-import { formatRupiah, formatNumber, calculateSummary } from '../utils/analytics';
+import { formatRupiah, formatNumber, calculateSummary, isFocusProduct, isNewProduct } from '../utils/analytics';
 import { downloadCsv } from '../services/gasService';
 import { exportToExcel, exportToPdf } from '../utils/exportUtils';
 
@@ -252,18 +252,18 @@ export const RawDataTable: React.FC<RawDataTableProps> = ({ records, filters, su
                     <td className="py-2 px-2.5 text-slate-500 font-sans max-w-xs truncate" title={r.SPU}>{r.SPU}</td>
                     <td className="py-2 px-2.5 text-slate-900 font-sans max-w-sm truncate font-semibold" title={r.SKU}>{r.SKU}</td>
                     <td className="py-2 px-2.5 font-sans">
-                      {r.PRODUK_FOCUS === 'FOCUS' ? (
+                      {isFocusProduct(r.PRODUK_FOCUS || r) ? (
                         <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold">
-                          FOCUS
+                          PRODUK FOKUS
                         </span>
                       ) : (
                         <span className="text-slate-400 text-[11px]">-</span>
                       )}
                     </td>
                     <td className="py-2 px-2.5 font-sans">
-                      {r.PRODUK_NEW === 'NEW' ? (
+                      {isNewProduct(r.PRODUK_NEW || r) ? (
                         <span className="px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-extrabold">
-                          NEW
+                          PRODUK NEW
                         </span>
                       ) : (
                         <span className="text-slate-400 text-[11px]">-</span>
